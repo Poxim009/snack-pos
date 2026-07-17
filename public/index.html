@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ระบบคิดตังแบบโหด</title>
+    <meta name="description" content="แอปจัดการรายรับรายจ่ายสำหรับขายขนม">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header class="app-header">
+        <div class="header-content">
+            <h1 class="app-title">🍪 ระบบคิดตังแบบโหด</h1>
+            <p class="app-date" id="currentDate"></p>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="app-main">
+        <!-- หน้า Dashboard -->
+        <section id="page-dashboard" class="page active">
+            <div id="dashboard-content">
+                <div class="loading">กำลังโหลด...</div>
+            </div>
+        </section>
+
+        <!-- หน้าขาย -->
+        <section id="page-sales" class="page">
+            <div id="sales-content"></div>
+        </section>
+
+        <!-- หน้ารายจ่าย -->
+        <section id="page-expenses" class="page">
+            <div id="expenses-content"></div>
+        </section>
+
+        <!-- หน้าสรุป -->
+        <section id="page-analytics" class="page">
+            <div id="analytics-content"></div>
+        </section>
+
+        <!-- หน้าลูกหนี้ -->
+        <section id="page-debts" class="page">
+            <div id="debts-content"></div>
+        </section>
+
+        <!-- หน้าตั้งค่า -->
+        <section id="page-settings" class="page">
+            <div id="settings-content"></div>
+        </section>
+    </main>
+
+    <!-- BOTTOM NAV -->
+    <nav class="bottom-nav">
+        <button class="nav-btn active" data-page="dashboard">
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">หน้าหลัก</span>
+        </button>
+        <button class="nav-btn" data-page="sales">
+            <span class="nav-icon">🛒</span>
+            <span class="nav-label">ขาย</span>
+        </button>
+        <button class="nav-btn" data-page="expenses">
+            <span class="nav-icon">💸</span>
+            <span class="nav-label">รายจ่าย</span>
+        </button>
+        <button class="nav-btn" data-page="analytics">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">สรุป</span>
+        </button>
+        <button class="nav-btn" data-page="debts">
+            <span class="nav-icon">💳</span>
+            <span class="nav-label">ทวงหนี้</span>
+        </button>
+        <button class="nav-btn" data-page="settings">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">ตั้งค่า</span>
+        </button>
+    </nav>
+
+    <!-- MODAL -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modalContent"></div>
+    </div>
+
+    <!-- TOAST -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- SCRIPTS -->
+    <script src="/js/utils/helpers.js"></script>
+    <script src="/js/utils/charts.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/pages/dashboard.js"></script>
+    <script src="/js/pages/sales.js"></script>
+    <script src="/js/pages/expenses.js"></script>
+    <script src="/js/pages/analytics.js"></script>
+    <script src="/js/pages/debts.js"></script>
+    <script src="/js/pages/settings.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

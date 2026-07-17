@@ -1,0 +1,139 @@
+const express = require('express');
+const router = express.Router();
+const db = require('../database/db');
+
+// --------------------------------------------------
+// GET /api/debts/summary — สรุปหนี้
+// --------------------------------------------------
+router.get('/summary', async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT 
+                COUNT(*) as pending_count,
+                COALESCE(SUM(amount - paid_amount), 0) as pending_total
+            FROM debts 
+            WHERE status IN ('pending', 'partial')
+        `);
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
+// GET /api/debts — ดึงรายการหนี้
+// --------------------------------------------------
+router.get('/', async (req, res) => {
+    const { status } = req.query;
+    
+    let queryStr = `
+        SELECT d.*, c.display_name, c.is_line_friend, c.picture_url
+        FROM debts d
+        JOIN customers c ON d.customer_id = c.id
+    `;
+    let params = [];
+
+    if (status === 'pending') {
+        queryStr += ` WHERE d.status IN ('pending', 'partial')`;
+    } else if (status === 'paid') {
+        queryStr += ` WHERE d.status = 'paid'`;
+    }
+    
+    queryStr += ` ORDER BY d.due_date ASC, d.id DESC`;
+
+    try {
+        const result = await db.query(queryStr, params);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
+// POST /api/debts — ลงบัญชีลูกหนี้ใหม่
+// --------------------------------------------------
+router.post('/', async (req, res) => {
+    const { customer_id, amount, items_description, due_date, auto_remind } = req.body;
+
+    if (!customer_id || !amount) {
+        return res.status(400).json({ error: 'ข้อมูลไม่ครบถ้วน' });
+    }
+
+    try {
+        const result = await db.query(`
+            INSERT INTO debts (customer_id, amount, items_description, due_date, auto_remind)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+        `, [
+            customer_id, 
+            parseFloat(amount), 
+            items_description || '', 
+            due_date || null, 
+            auto_remind !== undefined ? auto_remind : 1
+        ]);
+        
+        res.json({ success: true, id: result.rows[0].id });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
+// PUT /api/debts/:id/pay — ชำระหนี้ (รับเงินคืน)
+// --------------------------------------------------
+router.put('/:id/pay', async (req, res) => {
+    const debtId = req.params.id;
+    const { pay_amount } = req.body; // จำนวนเงินที่ลูกค้าเอามาจ่าย
+
+    if (!pay_amount || pay_amount <= 0) {
+        return res.status(400).json({ error: 'จำนวนเงินไม่ถูกต้อง' });
+    }
+
+    try {
+        // 1. ดึงข้อมูลหนี้ปัจจุบันมาดู
+        const debtResult = await db.query('SELECT * FROM debts WHERE id = $1', [debtId]);
+        const debt = debtResult.rows[0];
+
+        if (!debt) return res.status(404).json({ error: 'ไม่พบรายการหนี้' });
+        if (debt.status === 'paid') return res.status(400).json({ error: 'หนี้นี้ชำระครบแล้ว' });
+
+        const newPaidAmount = debt.paid_amount + parseFloat(pay_amount);
+        let newStatus = 'partial';
+        let paidAt = null;
+
+        // 2. เช็คว่าจ่ายครบหรือยัง
+        if (newPaidAmount >= debt.amount) {
+            newStatus = 'paid';
+            paidAt = new Date().toISOString(); // วันที่ชำระครบ
+        }
+
+        // 3. อัปเดตข้อมูลหนี้
+        await db.query(`
+            UPDATE debts 
+            SET paid_amount = $1, status = $2, paid_at = $3
+            WHERE id = $4
+        `, [newPaidAmount, newStatus, paidAt, debtId]);
+
+        res.json({ success: true, message: newStatus === 'paid' ? 'ชำระหนี้ครบถ้วนแล้ว!' : 'บันทึกยอดชำระบางส่วนแล้ว' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
+// DELETE /api/debts/:id — ลบรายการหนี้
+// --------------------------------------------------
+router.delete('/:id', async (req, res) => {
+    try {
+        await db.query('BEGIN');
+        await db.query('DELETE FROM debt_reminders WHERE debt_id = $1', [req.params.id]);
+        await db.query('DELETE FROM debts WHERE id = $1', [req.params.id]);
+        await db.query('COMMIT');
+        res.json({ success: true });
+    } catch (err) {
+        await db.query('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    }
+});
+
+module.exports = router;
