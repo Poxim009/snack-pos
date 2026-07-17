@@ -20,10 +20,13 @@ router.get('/status', (req, res) => {
     res.json({ configured: isLineConfigured });
 });
 
+const webhookMiddleware = isLineConfigured ? line.middleware(lineConfig) : (req, res, next) => next();
+
 // --------------------------------------------------
 // POST /api/line/webhook — รับข้อความ/เหตุการณ์จาก LINE
 // --------------------------------------------------
-router.post('/webhook', line.middleware(lineConfig), async (req, res) => {
+router.post('/webhook', webhookMiddleware, async (req, res) => {
+    if (!isLineConfigured) return res.status(400).send('LINE not configured');
     try {
         const events = req.body.events;
         await Promise.all(events.map(handleEvent));
