@@ -10,7 +10,7 @@ const lineConfig = {
     channelSecret: process.env.LINE_CHANNEL_SECRET
 };
 
-const isLineConfigured = !!lineConfig.channelAccessToken;
+const isLineConfigured = !!(lineConfig.channelAccessToken && lineConfig.channelSecret);
 const client = isLineConfigured ? new line.Client(lineConfig) : null;
 
 // --------------------------------------------------
