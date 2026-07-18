@@ -11,7 +11,18 @@ const lineConfig = {
 };
 
 const isLineConfigured = !!(lineConfig.channelAccessToken && lineConfig.channelSecret);
-const client = isLineConfigured ? new line.Client(lineConfig) : null;
+
+// @line/bot-sdk v11+ ใช้ MessagingApiClient แทน Client เดิม
+let client = null;
+if (isLineConfigured) {
+    try {
+        client = new line.messagingApi.MessagingApiClient({
+            channelAccessToken: lineConfig.channelAccessToken
+        });
+    } catch (err) {
+        console.error('⚠️ ไม่สามารถสร้าง LINE Client ได้:', err.message);
+    }
+}
 
 // --------------------------------------------------
 // GET /api/line/status — เช็คว่าตั้งค่า LINE หรือยัง
@@ -64,9 +75,12 @@ async function handleEvent(event) {
             }
             
             // ส่งข้อความต้อนรับ
-            return client.replyMessage(event.replyToken, {
-                type: 'text',
-                text: `สวัสดีจ้า 🍪 ยินดีต้อนรับสู่ร้านขนมของเรา ขอบคุณที่แอดเราเป็นเพื่อนนะ!`
+            return client.replyMessage({
+                replyToken: event.replyToken,
+                messages: [{
+                    type: 'text',
+                    text: `สวัสดีจ้า 🍪 ยินดีต้อนรับสู่ร้านขนมของเรา ขอบคุณที่แอดเราเป็นเพื่อนนะ!`
+                }]
             });
         } catch (error) {
             console.error('DB Error on follow:', error);
@@ -149,8 +163,11 @@ router.post('/send-reminder', async (req, res) => {
             }
         };
 
-        // ส่งข้อความไปหาลูกค้า
-        await client.pushMessage(debt.line_user_id, message);
+        // ส่งข้อความไปหาลูกค้า (v11+ ใช้ object แทน positional args)
+        await client.pushMessage({
+            to: debt.line_user_id,
+            messages: [message]
+        });
 
         // อัปเดตเวลาที่ส่งล่าสุดลง Database
         const now = new Date().toISOString();
