@@ -185,7 +185,7 @@ async function loadProductsForSettings() {
                 <div class="item-info">
                     <div onclick="editProductImage(${p.id}, '${p.name}')" style="cursor: pointer; position: relative;" title="เปลี่ยนรูปภาพ">
                         ${displayIcon}
-                        <div style="position: absolute; bottom: -5px; right: -5px; background: white; border-radius: 50%; padding: 2px; font-size: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">✏️</div>
+                        <div style="position: absolute; bottom: -5px; right: -5px; background: white; border-radius: 50%; padding: 2px; font-size: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">➕</div>
                     </div>
                     <div>
                         <div class="item-title">${p.name}</div>
@@ -206,22 +206,46 @@ async function loadProductsForSettings() {
 }
 
 async function editProductImage(id, name) {
-    const url = prompt(`ใส่ลิงก์รูปภาพใหม่สำหรับ "${name}"\n(หากต้องการใช้ Emoji เหมือนเดิม ให้ลบข้อความออกให้หมด)`);
-    if (url === null) return; // กด Cancel
+    // 1. สร้าง input type="file" แบบซ่อน
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
     
-    try {
-        const res = await fetch(`/api/products/${id}/image`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image_url: url.trim() })
-        });
-        if (!res.ok) throw new Error('Failed to update image');
+    // 2. เมื่อผู้ใช้เลือกไฟล์
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
         
-        showToast('อัปเดตรูปภาพเรียบร้อย!');
-        loadProductsForSettings();
-    } catch (error) {
-        alert('แก้ไขรูปล้มเหลว: ' + error.message);
-    }
+        // ตรวจสอบขนาดไฟล์ (ไม่เกิน 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('ขนาดไฟล์ใหญ่เกินไป (สูงสุด 5MB)');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        showToast('กำลังอัปโหลดรูปภาพ...');
+        
+        try {
+            const res = await fetch(`/api/products/${id}/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await res.json();
+            
+            if (!res.ok) throw new Error(data.error || 'Failed to upload image');
+            
+            showToast('อัปโหลดรูปภาพสำเร็จ!');
+            loadProductsForSettings(); // โหลดรายการสินค้าใหม่เพื่อแสดงรูป
+        } catch (error) {
+            alert('อัปโหลดล้มเหลว: ' + error.message);
+        }
+    };
+    
+    // 3. จำลองการคลิกเพื่อเปิด Gallery
+    input.click();
 }
 
 async function showAddProductModal() {

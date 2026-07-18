@@ -127,4 +127,47 @@ router.patch('/:id/image', async (req, res) => {
     }
 });
 
+// ตั้งค่า Multer สำหรับอัปโหลดรูป
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+let uploadsDir = path.join(__dirname, '..', 'uploads');
+const glitchUploadsDir = path.join(__dirname, '..', '.data', 'uploads');
+if (fs.existsSync(path.join(__dirname, '..', '.data'))) {
+    if (!fs.existsSync(glitchUploadsDir)) fs.mkdirSync(glitchUploadsDir, { recursive: true });
+    uploadsDir = glitchUploadsDir;
+}
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadsDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'product-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage: storage });
+
+// POST /api/products/:id/upload — อัปโหลดรูปภาพสินค้า
+router.post('/:id/upload', upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'ไม่พบไฟล์รูปภาพ' });
+        }
+        const imageUrl = '/uploads/' + req.file.filename;
+        
+        await db.query(`
+            UPDATE products 
+            SET image_url = $1 
+            WHERE id = $2
+        `, [imageUrl, req.params.id]);
+        
+        res.json({ success: true, image_url: imageUrl, message: 'อัปโหลดรูปภาพเรียบร้อย' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
