@@ -241,7 +241,7 @@ function showQRPayment() {
     const netTotal = parseFloat(document.getElementById('checkout-net-total').textContent) || 0;
     
     // สร้าง QR Code ผ่าน PromptPay API
-    const qrUrl = \`https://promptpay.io/\${promptpayId}/\${netTotal}.png\`;
+    const qrUrl = `https://promptpay.io/${promptpayId}/${netTotal}.png`;
     
     document.getElementById('checkout-qr-img').src = qrUrl;
     document.getElementById('checkout-qr-container').style.display = 'block';

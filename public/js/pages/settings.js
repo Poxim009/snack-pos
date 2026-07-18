@@ -210,7 +210,7 @@ async function editProductImage(id, name) {
     if (url === null) return; // กด Cancel
     
     try {
-        const res = await fetch(\`/api/products/\${id}/image\`, {
+        const res = await fetch(`/api/products/${id}/image`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image_url: url.trim() })
