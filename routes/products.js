@@ -54,7 +54,7 @@ router.get('/', async (req, res) => {
 
 // POST /api/products — เพิ่มสินค้าใหม่
 router.post('/', async (req, res) => {
-    const { category_id, name, emoji, sell_price, cost_price, stock_qty } = req.body;
+    const { category_id, name, emoji, sell_price, cost_price, stock_qty, image_url } = req.body;
     
     if (!name || sell_price === undefined) {
         return res.status(400).json({ error: 'ข้อมูลไม่ครบถ้วน (ต้องมีชื่อและราคาขาย)' });
@@ -62,8 +62,8 @@ router.post('/', async (req, res) => {
 
     try {
         const result = await db.query(`
-            INSERT INTO products (category_id, name, emoji, sell_price, cost_price, stock_qty)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO products (category_id, name, emoji, sell_price, cost_price, stock_qty, image_url)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
         `, [
             category_id || null, 
@@ -71,7 +71,8 @@ router.post('/', async (req, res) => {
             emoji || '🍪', 
             sell_price, 
             cost_price || 0, 
-            stock_qty || 0
+            stock_qty || 0,
+            image_url || ''
         ]);
         
         res.json({ success: true, id: result.rows[0].id });

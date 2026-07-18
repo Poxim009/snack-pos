@@ -61,14 +61,19 @@ function renderProductCategories() {
             <div class="mt-2 mb-2">
                 <h3 style="font-size: 1rem; color: var(--text-muted);">${products[0].category_emoji || '📦'} ${catName}</h3>
                 <div class="pos-grid">
-                    ${products.map(p => `
+                    ${products.map(p => {
+                        const iconHtml = p.image_url
+                            ? `<img src="${p.image_url}" style="width:100%; height:80px; object-fit:cover; border-radius:12px; margin-bottom:5px;">`
+                            : `<div class="pos-emoji">${p.emoji}</div>`;
+                        return `
                         <div class="pos-item" id="pos-item-${p.id}" onclick="addToCart(${p.id})">
-                            <div class="pos-emoji">${p.emoji}</div>
+                            ${iconHtml}
                             <div class="pos-name">${p.name}</div>
                             <div class="pos-price">฿${p.sell_price}</div>
                             <div class="pos-qty" id="qty-badge-${p.id}">0</div>
                         </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
