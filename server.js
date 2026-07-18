@@ -15,8 +15,16 @@ const PORT = process.env.PORT || 3000;
 // --- ตั้งค่า middleware ---
 // middleware = "ตัวกรอง" ที่ทำงานก่อนทุก request
 app.use(cors());                                        // อนุญาตทุก domain
-app.use(express.json());                                // รับข้อมูล JSON ได้
-app.use(express.urlencoded({ extended: true }));         // รับข้อมูลจาก form ได้
+app.use((req, res, next) => {
+    if (req.originalUrl === '/api/line/webhook') {
+        next(); // ปล่อยผ่านให้ LINE SDK จัดการ body เอง
+    } else {
+        express.json()(req, res, (err) => {
+            if (err) return next(err);
+            express.urlencoded({ extended: true })(req, res, next);
+        });
+    }
+});
 app.use(express.static(path.join(__dirname, 'public'))); // เสิร์ฟไฟล์ frontend
 
 // --- เสิร์ฟรูปที่ upload ---
