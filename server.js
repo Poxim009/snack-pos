@@ -45,6 +45,32 @@ app.use('/api/customers', require('./routes/customers'));
 app.use('/api/debts', require('./routes/debts'));
 app.use('/api/line', require('./routes/line'));
 
+// --- Health Check: เช็คสถานะ DB ---
+app.get('/api/health', async (req, res) => {
+    const envStatus = {
+        DB_HOST: process.env.DB_HOST ? `SET (${process.env.DB_HOST})` : 'NOT SET',
+        DB_PORT: process.env.DB_PORT ? `SET (${process.env.DB_PORT})` : 'NOT SET',
+        DB_USER: process.env.DB_USER ? `SET (${process.env.DB_USER})` : 'NOT SET',
+        DB_PASSWORD: process.env.DB_PASSWORD ? `SET (length: ${process.env.DB_PASSWORD.length})` : 'NOT SET',
+        DB_NAME: process.env.DB_NAME ? `SET (${process.env.DB_NAME})` : 'NOT SET',
+        SUPABASE_DB_URL: process.env.SUPABASE_DB_URL ? 'SET' : 'NOT SET',
+    };
+
+    let dbTest = 'NOT TESTED';
+    let tables = [];
+    try {
+        const result = await db.query('SELECT 1 as ok');
+        dbTest = 'CONNECTED OK';
+        // Check tables
+        const tablesResult = await db.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
+        tables = tablesResult.rows.map(r => r.table_name);
+    } catch (e) {
+        dbTest = `FAILED: ${e.message || e.code || JSON.stringify(e)}`;
+    }
+
+    res.json({ env: envStatus, db: dbTest, tables });
+});
+
 // --- Route หลัก: ส่งหน้า index.html ---
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
