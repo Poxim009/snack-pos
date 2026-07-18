@@ -28,9 +28,15 @@ if (process.env.DB_HOST) {
 
 const pool = new Pool(poolConfig);
 
-// ฟังก์ชัน helper เพื่อจำลองรูปแบบเดิมของ better-sqlite3 เล็กน้อย 
-// แต่เราจะใช้ pool.query เป็นหลักในการเรียกใช้งาน
 module.exports = {
-    query: (text, params) => pool.query(text, params),
+    query: async (text, params) => {
+        try {
+            return await pool.query(text, params);
+        } catch (e) {
+            console.error('DB Query Error:', e);
+            if (!e.message) e.message = String(e);
+            throw e;
+        }
+    },
     pool: pool
 };
