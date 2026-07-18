@@ -152,7 +152,10 @@ async function loadProductsForSettings() {
             return `
             <div class="item-card">
                 <div class="item-info">
-                    ${displayIcon}
+                    <div onclick="editProductImage(${p.id}, '${p.name}')" style="cursor: pointer; position: relative;" title="เปลี่ยนรูปภาพ">
+                        ${displayIcon}
+                        <div style="position: absolute; bottom: -5px; right: -5px; background: white; border-radius: 50%; padding: 2px; font-size: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">✏️</div>
+                    </div>
                     <div>
                         <div class="item-title">${p.name}</div>
                         <div class="item-subtitle">ขาย ฿${p.sell_price} (สต๊อก: ${p.stock_qty})</div>
@@ -168,6 +171,25 @@ async function loadProductsForSettings() {
         
     } catch (error) {
         list.innerHTML = `<div class="text-danger">โหลดล้มเหลว</div>`;
+    }
+}
+
+async function editProductImage(id, name) {
+    const url = prompt(`ใส่ลิงก์รูปภาพใหม่สำหรับ "${name}"\n(หากต้องการใช้ Emoji เหมือนเดิม ให้ลบข้อความออกให้หมด)`);
+    if (url === null) return; // กด Cancel
+    
+    try {
+        const res = await fetch(\`/api/products/\${id}/image\`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_url: url.trim() })
+        });
+        if (!res.ok) throw new Error('Failed to update image');
+        
+        showToast('อัปเดตรูปภาพเรียบร้อย!');
+        loadProductsForSettings();
+    } catch (error) {
+        alert('แก้ไขรูปล้มเหลว: ' + error.message);
     }
 }
 

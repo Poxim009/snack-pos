@@ -110,5 +110,21 @@ router.patch('/:id/stock', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// PATCH /api/products/:id/image — แก้ไขรูปภาพ
+router.patch('/:id/image', async (req, res) => {
+    const { image_url } = req.body;
+    
+    try {
+        await db.query(`
+            UPDATE products 
+            SET image_url = $1 
+            WHERE id = $2
+        `, [image_url || '', req.params.id]);
+        
+        res.json({ success: true, message: 'อัปเดตรูปภาพเรียบร้อย' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 module.exports = router;
