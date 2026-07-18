@@ -23,7 +23,7 @@ async function renderSales() {
                 <div id="cartItems" class="item-list mb-2" style="max-height: 150px; overflow-y: auto;">
                     <p class="text-muted text-center" style="font-size: 0.85rem;">ยังไม่ได้เลือกสินค้า (แตะด้านล่างเพื่อเลือก)</p>
                 </div>
-                <button class="btn btn-primary" id="btnSubmitSale" onclick="submitSale()" disabled>คิดเงิน</button>
+                <button class="btn btn-primary" id="btnSubmitSale" onclick="openCheckoutModal()" disabled>คิดเงิน</button>
             </div>
 
             <!-- หมวดหมู่และสินค้า -->
@@ -171,24 +171,118 @@ function updateCartUI() {
     cartItemsDiv.scrollTop = cartItemsDiv.scrollHeight;
 }
 
-// กดคิดเงิน
-async function submitSale() {
+// --------------------------------------------------
+// ระบบ Checkout ใหม่ (ส่วนลด + รูปแบบการจ่าย)
+// --------------------------------------------------
+function openCheckoutModal() {
     if (currentCart.length === 0) return;
     
-    const btnSubmit = document.getElementById('btnSubmitSale');
-    btnSubmit.disabled = true;
-    btnSubmit.textContent = 'กำลังบันทึก...';
+    let total = 0;
+    currentCart.forEach(item => total += item.quantity * item.unit_price);
+    
+    const html = `
+        ${getModalHeader('💰 สรุปการขาย')}
+        <div style="text-align: center; margin-bottom: 1rem;">
+            <div class="text-muted" style="font-size: 0.9rem;">ยอดรวมสินค้า</div>
+            <div style="font-size: 1.5rem; font-weight: bold;">฿<span id="checkout-total">${total}</span></div>
+        </div>
+        
+        <div class="form-group flex align-center justify-between" style="gap: 10px;">
+            <label class="form-label mb-0" style="flex: 1;">ส่วนลด (บาท):</label>
+            <input type="number" id="checkout-discount" class="form-control text-center" value="0" min="0" max="${total}" style="width: 100px; font-weight: bold;" oninput="updateCheckoutNetTotal()">
+        </div>
+        
+        <hr style="margin: 1rem 0; opacity: 0.2;">
+        
+        <div class="flex justify-between align-center mb-1">
+            <div style="font-size: 1.2rem; font-weight: bold;">ยอดสุทธิ</div>
+            <div style="font-size: 2rem; font-weight: bold; color: var(--primary);">฿<span id="checkout-net-total">${total}</span></div>
+        </div>
+        
+        <div id="checkout-qr-container" style="display: none; text-align: center; margin: 1rem 0;">
+            <img id="checkout-qr-img" src="" style="width: 200px; height: 200px; border-radius: 12px; border: 2px solid var(--primary); padding: 5px;">
+            <p class="text-muted mt-1 text-sm">ให้ลูกค้าสแกน QR Code เพื่อโอนเงิน</p>
+        </div>
+        
+        <div id="checkout-buttons" style="display: flex; gap: 10px; margin-top: 1rem;">
+            <button class="btn btn-outline" style="flex: 1;" onclick="processPayment('cash')">💵 เงินสด</button>
+            <button class="btn btn-primary" style="flex: 1;" onclick="showQRPayment()">📱 สแกน QR</button>
+        </div>
+        
+        <button id="checkout-confirm-btn" class="btn btn-primary mt-2" style="display: none; width: 100%;" onclick="processPayment('promptpay')">✅ ยืนยันว่าได้รับเงินแล้ว (ปิดบิล)</button>
+    `;
+    
+    openModal(html);
+}
+
+function updateCheckoutNetTotal() {
+    let total = 0;
+    currentCart.forEach(item => total += item.quantity * item.unit_price);
+    
+    const discountInput = document.getElementById('checkout-discount');
+    let discount = parseFloat(discountInput.value) || 0;
+    if (discount < 0) discount = 0;
+    if (discount > total) {
+        discount = total;
+        discountInput.value = discount;
+    }
+    
+    document.getElementById('checkout-net-total').textContent = (total - discount).toString();
+}
+
+function showQRPayment() {
+    const promptpayId = localStorage.getItem('promptpay_id');
+    if (!promptpayId) {
+        alert('ยังไม่ได้ตั้งค่าเบอร์ PromptPay! กรุณาไปตั้งค่าที่เมนูตั้งค่าระบบก่อนครับ');
+        closeModal();
+        return;
+    }
+    
+    const netTotal = parseFloat(document.getElementById('checkout-net-total').textContent) || 0;
+    
+    // สร้าง QR Code ผ่าน PromptPay API
+    const qrUrl = \`https://promptpay.io/\${promptpayId}/\${netTotal}.png\`;
+    
+    document.getElementById('checkout-qr-img').src = qrUrl;
+    document.getElementById('checkout-qr-container').style.display = 'block';
+    
+    // ซ่อนปุ่มเลือกจ่าย โชว์ปุ่มยืนยันแทน
+    document.getElementById('checkout-buttons').style.display = 'none';
+    document.getElementById('checkout-discount').disabled = true; // ล็อคส่วนลดไม่ให้แก้
+    document.getElementById('checkout-confirm-btn').style.display = 'block';
+}
+
+// กดคิดเงินเพื่อจบการขาย
+async function processPayment(paymentMethod) {
+    if (currentCart.length === 0) return;
+    
+    const discountInput = document.getElementById('checkout-discount');
+    const discount = parseFloat(discountInput ? discountInput.value : 0) || 0;
+
+    const btnSubmit = document.getElementById('checkout-confirm-btn');
+    if(btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = 'กำลังบันทึก...';
+    }
 
     try {
-        await API.Sales.create({ items: currentCart });
-        showToast('บันทึกยอดขายเรียบร้อย!');
+        await API.Sales.create({ 
+            items: currentCart,
+            discount: discount,
+            payment_method: paymentMethod
+        });
+        showToast(paymentMethod === 'cash' ? 'รับเงินสดเรียบร้อย!' : 'ปิดบิล QR Code เรียบร้อย!');
         
         // เคลียร์ตะกร้า
         currentCart = [];
         updateCartUI();
+        closeModal();
         
     } catch (error) {
-        btnSubmit.disabled = false;
-        btnSubmit.textContent = 'คิดเงิน';
+        if(btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'ลองใหม่อีกครั้ง';
+        }
+        alert('เกิดข้อผิดพลาด: ' + error.message);
     }
 }

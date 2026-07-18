@@ -46,8 +46,10 @@ router.get('/today', async (req, res) => {
 // --------------------------------------------------
 // POST /api/sales — บันทึกการขาย (คิดเงิน)
 // --------------------------------------------------
+// POST /api/sales — บันทึกการขาย (คิดเงิน)
+// --------------------------------------------------
 router.post('/', async (req, res) => {
-    const { items, note } = req.body;
+    const { items, note, discount, payment_method } = req.body;
     
     if (!items || items.length === 0) {
         return res.status(400).json({ error: 'ไม่มีสินค้าในตะกร้า' });
@@ -61,15 +63,22 @@ router.post('/', async (req, res) => {
         totalAmount += (item.quantity * item.unit_price);
     });
 
+    // หักส่วนลด
+    const finalDiscount = parseFloat(discount) || 0;
+    let netTotal = totalAmount - finalDiscount;
+    if (netTotal < 0) netTotal = 0;
+
+    const finalPaymentMethod = payment_method || 'cash';
+
     try {
         await db.query('BEGIN'); // เริ่ม Transaction
 
         // 1. สร้างบิลใหม่
         const saleResult = await db.query(`
-            INSERT INTO sales (date, total_amount, note) 
-            VALUES ($1, $2, $3)
+            INSERT INTO sales (date, total_amount, note, discount, payment_method) 
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id
-        `, [today, totalAmount, note || '']);
+        `, [today, netTotal, note || '', finalDiscount, finalPaymentMethod]);
         
         const saleId = saleResult.rows[0].id;
 

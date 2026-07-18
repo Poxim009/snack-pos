@@ -21,6 +21,15 @@ async function renderSettings() {
                 </div>
                 ${!lineStatus.configured ? `<p class="text-muted mt-1" style="font-size: 0.85rem;">กรุณาใส่ Channel Access Token ในไฟล์ .env แล้วรีสตาร์ท Server</p>` : ''}
             </div>
+            <!-- ตั้งค่า PromptPay -->
+            <div class="card mt-2">
+                <h3>📱 ตั้งค่าสแกนจ่าย QR Code</h3>
+                <div class="flex align-center gap-2 mt-1">
+                    <input type="text" id="promptpay_id_input" class="form-control" placeholder="เบอร์โทรศัพท์ หรือ เลขบัตร ปชช." value="${localStorage.getItem('promptpay_id') || ''}" style="flex: 1;">
+                    <button class="btn btn-primary btn-sm" onclick="savePromptPay()">บันทึก</button>
+                </div>
+                <p class="text-muted mt-1" style="font-size: 0.85rem;">* เบอร์นี้จะใช้สำหรับสร้าง QR Code ให้ลูกค้าสแกนจ่ายเงิน (ข้อมูลเก็บไว้ในเครื่องของคุณเท่านั้น)</p>
+            </div>
 
             <!-- จัดการสินค้า -->
             <div class="card mt-2">
@@ -53,6 +62,28 @@ async function renderSettings() {
     } catch (error) {
         container.innerHTML = `<div class="text-danger text-center">โหลดข้อมูลล้มเหลว: ${error.message}</div>`;
     }
+}
+
+// ------------------------------------------------------------------
+// ตั้งค่า PromptPay
+// ------------------------------------------------------------------
+function savePromptPay() {
+    const input = document.getElementById('promptpay_id_input');
+    const val = input.value.trim();
+    if (!val) {
+        localStorage.removeItem('promptpay_id');
+        showToast('ลบเบอร์ PromptPay แล้ว');
+        return;
+    }
+    
+    // ตรวจสอบคร่าวๆ ว่าเป็นตัวเลข
+    if (!/^[0-9-]{10,13}$/.test(val.replace(/-/g, ''))) {
+        alert('กรุณากรอกเบอร์โทรศัพท์หรือเลขบัตรประชาชนให้ถูกต้อง');
+        return;
+    }
+    
+    localStorage.setItem('promptpay_id', val.replace(/-/g, ''));
+    showToast('บันทึกเบอร์ PromptPay แล้ว!');
 }
 
 // ------------------------------------------------------------------
