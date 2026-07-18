@@ -137,6 +137,8 @@ const glitchUploadsDir = path.join(__dirname, '..', '.data', 'uploads');
 if (fs.existsSync(path.join(__dirname, '..', '.data'))) {
     if (!fs.existsSync(glitchUploadsDir)) fs.mkdirSync(glitchUploadsDir, { recursive: true });
     uploadsDir = glitchUploadsDir;
+} else {
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 const storage = multer.diskStorage({
