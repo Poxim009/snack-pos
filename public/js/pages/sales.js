@@ -235,7 +235,7 @@ function openCheckoutModal() {
         <div id="checkout-buttons" style="display: flex; gap: 10px; margin-top: 1rem;">
             <button class="btn btn-outline" style="flex: 1;" onclick="showCashPayment()">💵 เงินสด</button>
             <button class="btn btn-primary" style="flex: 1;" onclick="showQRPayment()">📱 สแกน QR</button>
-            <button class="btn btn-outline" style="flex: 1; border-color: var(--danger); color: var(--danger);" onclick="showDebtPayment()">📝 แปะโป้ง</button>
+            <button class="btn btn-outline" style="flex: 1; border-color: var(--danger); color: var(--danger);" onclick="showDebtPayment()">📝 ลงบัญชีค้างชำระ</button>
         </div>
         
         <!-- ส่วนรับเงินสด (จะแสดงเมื่อกดปุ่มเงินสด) -->
@@ -257,10 +257,10 @@ function openCheckoutModal() {
             <button id="checkout-cash-confirm-btn" class="btn btn-primary mt-2" style="width: 100%; font-size: 1.2rem; padding: 12px;" onclick="processPayment('cash')">✅ จบบิล (ทอนเงินแล้ว)</button>
         </div>
         
-        <!-- ส่วนแปะโป้งหนี้ -->
+        <!-- ส่วนลงบัญชีค้างชำระ -->
         <div id="debt-payment-container" style="display: none; margin-top: 1rem; text-align: left;">
             <div class="form-group">
-                <label class="form-label">เลือกลูกค้าที่ต้องการแปะโป้ง</label>
+                <label class="form-label">เลือกลูกค้าที่ต้องการลงบัญชีค้างชำระ</label>
                 ${renderCustomCustomerSelect(salesCustomers, 'debt_customer_id')}
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
                     * ลูกค้าจะแอดเพิ่มได้อัตโนมัติเมื่อเขากดเพิ่มเพื่อน LINE OA ของคุณ
@@ -295,7 +295,7 @@ function openCheckoutModal() {
                 <img id="pos_debt_evidence_preview" src="" style="display: none; width: 100%; max-height: 200px; object-fit: contain; margin-top: 10px; border-radius: 8px; border: 1px solid var(--border);">
             </div>
             
-            <button class="btn mt-2" style="width: 100%; font-size: 1.2rem; padding: 12px; background: var(--danger); color: white;" onclick="processPayment('debt')">📝 ลงบัญชีหนี้ (แปะโป้ง)</button>
+            <button class="btn mt-2" style="width: 100%; font-size: 1.2rem; padding: 12px; background: var(--danger); color: white;" onclick="processPayment('debt')">📝 ลงบัญชีค้างชำระ</button>
         </div>
         
         <button id="checkout-confirm-btn" class="btn btn-primary mt-2" style="display: none; width: 100%;" onclick="processPayment('promptpay')">✅ ยืนยันว่าได้รับเงินแล้ว (ปิดบิล)</button>
@@ -432,7 +432,7 @@ async function processPayment(paymentMethod) {
     if (paymentMethod === 'debt') {
         const customer_id = document.getElementById('hidden_debt_customer_id')?.value;
         if (!customer_id) {
-            alert('กรุณาเลือกลูกค้าที่จะแปะโป้ง');
+            alert('กรุณาเลือกลูกค้าที่จะลงบัญชีค้างชำระ');
             return;
         }
         payload.customer_id = customer_id;
@@ -455,7 +455,7 @@ async function processPayment(paymentMethod) {
         if (paymentMethod === 'cash') msg = 'รับเงินสดเรียบร้อย!';
         if (paymentMethod === 'promptpay') msg = 'ปิดบิล QR Code เรียบร้อย!';
         if (paymentMethod === 'debt') {
-            msg = 'ลงบัญชีลูกหนี้เรียบร้อย!';
+            msg = 'ลงบัญชีค้างชำระเรียบร้อย!';
             // ส่งข้อความ LINE ทันที
             if (res && res.debt_id) {
                 API.Line.notifyNewDebt(res.debt_id).catch(e => console.error("Line notification failed:", e));

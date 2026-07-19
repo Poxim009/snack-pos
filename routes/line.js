@@ -242,7 +242,7 @@ router.post('/notify-new-debt', async (req, res) => {
 
         const message = {
             type: 'flex',
-            altText: 'รายการแปะโป้งใหม่ 📝',
+            altText: 'รายการค้างชำระใหม่ 📝',
             contents: {
                 type: "bubble",
                 header: {
@@ -250,7 +250,7 @@ router.post('/notify-new-debt', async (req, res) => {
                     layout: "vertical",
                     contents: [{
                         type: "text",
-                        text: "รายการลงบัญชีใหม่ 📝",
+                        text: "รายการลงบัญชีค้างชำระ 📝",
                         weight: "bold",
                         color: "#ffffff",
                         size: "lg"
@@ -262,7 +262,7 @@ router.post('/notify-new-debt', async (req, res) => {
                     layout: "vertical",
                     contents: [
                         { type: "text", text: `สวัสดีคุณ ${debt.display_name}`, margin: "md" },
-                        { type: "text", text: "คุณมีรายการแปะโป้ง/ค้างชำระใหม่", margin: "sm" },
+                        { type: "text", text: "คุณมีรายการค้างชำระใหม่", margin: "sm" },
                         { type: "text", text: `ยอดหนี้ใหม่: ฿${remaining}`, weight: "bold", size: "xl", color: "#10B981", margin: "md" },
                         { type: "text", text: `รายละเอียด: ${debt.items_description || '-'}`, size: "sm", color: "#666666", margin: "sm", wrap: true }
                     ]
