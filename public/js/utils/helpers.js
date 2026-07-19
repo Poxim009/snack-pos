@@ -93,8 +93,11 @@ function renderCustomCustomerSelect(customers, inputName = 'customer_id') {
             : `<div style="width: 24px; height: 24px; border-radius: 50%; background: var(--bg-body); display: flex; align-items: center; justify-content: center; font-size: 12px;">👤</div>`;
         const lineBadge = c.is_line_friend ? `<span style="color: #00B900; font-size: 0.7rem; margin-left: 5px;">🟢 ผูก LINE แล้ว</span>` : '';
         
+        // Escape quotes just in case
+        const safeName = c.display_name.replace(/'/g, "\\'");
+        
         return `
-            <div class="custom-select-option flex align-center gap-2" data-value="${c.id}" data-name="${c.display_name}">
+            <div class="custom-select-option flex align-center gap-2" data-value="${c.id}" data-name="${c.display_name}" onclick="selectCustomCustomer('${inputName}', '${c.id}', '${safeName}', this)">
                 ${imgHtml}
                 <div>
                     <div>${c.display_name}</div>
@@ -115,23 +118,18 @@ function renderCustomCustomerSelect(customers, inputName = 'customer_id') {
                 ${optionsHtml}
             </div>
         </div>
-        <script>
-            // Script เล็กๆ ไว้จัดการการคลิกเลือก Option
-            document.querySelectorAll('#customSelectOptions_${inputName} .custom-select-option').forEach(opt => {
-                opt.addEventListener('click', function() {
-                    const val = this.getAttribute('data-value');
-                    const name = this.getAttribute('data-name');
-                    const imgHtml = this.querySelector('img, div').outerHTML;
-                    
-                    document.getElementById('hidden_${inputName}').value = val;
-                    document.getElementById('customSelectText_${inputName}').innerHTML = '<div class="flex align-center gap-2">' + imgHtml + '<span>' + name + '</span></div>';
-                    document.getElementById('customSelectText_${inputName}').classList.remove('text-muted');
-                    document.getElementById('customSelectOptions_${inputName}').style.display = 'none';
-                });
-            });
-        </script>
     `;
 }
+
+// Global function to handle selection since <script> inside innerHTML doesn't execute
+window.selectCustomCustomer = function(inputName, val, name, el) {
+    const imgHtml = el.querySelector('img, div').outerHTML;
+    
+    document.getElementById(`hidden_${inputName}`).value = val;
+    document.getElementById(`customSelectText_${inputName}`).innerHTML = '<div class="flex align-center gap-2">' + imgHtml + '<span>' + name + '</span></div>';
+    document.getElementById(`customSelectText_${inputName}`).classList.remove('text-muted');
+    document.getElementById(`customSelectOptions_${inputName}`).style.display = 'none';
+};
 
 // อัปโหลดรูปหลักฐาน
 async function uploadEvidenceImage(fileInput, previewId, hiddenInputId) {

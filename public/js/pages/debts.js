@@ -187,8 +187,14 @@ async function submitDebt(event) {
     btn.textContent = 'กำลังบันทึก...';
     
     try {
-        await API.Debts.create(data);
+        const res = await API.Debts.create(data);
         showToast('บันทึกลูกหนี้เรียบร้อย!');
+        
+        // ส่งข้อความ LINE ทันที
+        if (res && res.id) {
+            API.Line.notifyNewDebt(res.id).catch(e => console.error("Line notification failed:", e));
+        }
+        
         closeModal();
         renderDebts();
     } catch (error) {

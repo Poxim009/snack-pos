@@ -449,12 +449,18 @@ async function processPayment(paymentMethod) {
     }
 
     try {
-        await API.Sales.create(payload);
+        const res = await API.Sales.create(payload);
         
         let msg = 'บันทึกเรียบร้อย!';
         if (paymentMethod === 'cash') msg = 'รับเงินสดเรียบร้อย!';
         if (paymentMethod === 'promptpay') msg = 'ปิดบิล QR Code เรียบร้อย!';
-        if (paymentMethod === 'debt') msg = 'ลงบัญชีลูกหนี้เรียบร้อย!';
+        if (paymentMethod === 'debt') {
+            msg = 'ลงบัญชีลูกหนี้เรียบร้อย!';
+            // ส่งข้อความ LINE ทันที
+            if (res && res.debt_id) {
+                API.Line.notifyNewDebt(res.debt_id).catch(e => console.error("Line notification failed:", e));
+            }
+        }
         
         showToast(msg);
         

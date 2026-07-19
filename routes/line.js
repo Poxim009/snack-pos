@@ -217,4 +217,84 @@ router.post('/send-reminder', async (req, res) => {
     }
 });
 
+// --------------------------------------------------
+// POST /api/line/notify-new-debt — แจ้งเตือนบิลแปะโป้งใหม่
+// --------------------------------------------------
+router.post('/notify-new-debt', async (req, res) => {
+    if (!isLineConfigured) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า LINE OA' });
+
+    const { debt_id } = req.body;
+    
+    try {
+        const debtRes = await db.query(`
+            SELECT d.*, c.line_user_id, c.display_name 
+            FROM debts d
+            JOIN customers c ON d.customer_id = c.id
+            WHERE d.id = $1
+        `, [debt_id]);
+        
+        const debt = debtRes.rows[0];
+
+        if (!debt) return res.status(404).json({ error: 'ไม่พบข้อมูลหนี้' });
+        if (!debt.line_user_id) return res.status(400).json({ error: 'ลูกค้านี้ยังไม่ได้เชื่อม LINE' });
+        
+        const remaining = debt.amount - debt.paid_amount;
+
+        const message = {
+            type: 'flex',
+            altText: 'รายการแปะโป้งใหม่ 📝',
+            contents: {
+                type: "bubble",
+                header: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [{
+                        type: "text",
+                        text: "รายการลงบัญชีใหม่ 📝",
+                        weight: "bold",
+                        color: "#ffffff",
+                        size: "lg"
+                    }],
+                    backgroundColor: "#10B981" // สีเขียวแสดงว่าเป็นรายการใหม่
+                },
+                body: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [
+                        { type: "text", text: `สวัสดีคุณ ${debt.display_name}`, margin: "md" },
+                        { type: "text", text: "คุณมีรายการแปะโป้ง/ค้างชำระใหม่", margin: "sm" },
+                        { type: "text", text: `ยอดหนี้ใหม่: ฿${remaining}`, weight: "bold", size: "xl", color: "#10B981", margin: "md" },
+                        { type: "text", text: `รายละเอียด: ${debt.items_description || '-'}`, size: "sm", color: "#666666", margin: "sm", wrap: true }
+                    ]
+                }
+            }
+        };
+
+        const messagesToSend = [message];
+
+        // ถ้ามีรูปหลักฐาน ให้ส่งไปด้วย
+        if (debt.evidence_image_url) {
+            const imageUrl = debt.evidence_image_url;
+            if (imageUrl.startsWith('http')) {
+                messagesToSend.push({
+                    type: 'image',
+                    originalContentUrl: imageUrl,
+                    previewImageUrl: imageUrl
+                });
+            }
+        }
+
+        await client.pushMessage({
+            to: debt.line_user_id,
+            messages: messagesToSend
+        });
+
+        res.json({ success: true, message: 'ส่งข้อความแจ้งหนี้ใหม่ทาง LINE สำเร็จ!' });
+
+    } catch (err) {
+        console.error('Send New Debt Notification Error:', err);
+        res.status(500).json({ error: 'ไม่สามารถส่งข้อความแจ้งเตือนได้' });
+    }
+});
+
 module.exports = router;

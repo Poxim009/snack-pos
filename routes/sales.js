@@ -101,6 +101,7 @@ router.post('/', async (req, res) => {
         }
 
         // 3. ถ้าจ่ายแบบแปะโป้ง (debt) ให้บันทึกหนี้ด้วย
+        let debtId = null;
         if (finalPaymentMethod === 'debt') {
             const { customer_id, due_date, remind_time, remind_frequency, evidence_image_url } = req.body;
             if (!customer_id) throw new Error('ไม่พบข้อมูลลูกค้าสำหรับลงบัญชีหนี้');
@@ -108,9 +109,10 @@ router.post('/', async (req, res) => {
             // สร้างคำอธิบายรวมๆ จากตะกร้าสินค้า
             const itemsDescription = items.map(i => `${i.product_name} x${i.quantity}`).join(', ');
             
-            await db.query(`
+            const debtResult = await db.query(`
                 INSERT INTO debts (customer_id, amount, items_description, due_date, auto_remind, remind_frequency, remind_time, evidence_image_url)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING id
             `, [
                 customer_id, 
                 netTotal, 
@@ -121,10 +123,11 @@ router.post('/', async (req, res) => {
                 remind_time || '10:00',
                 evidence_image_url || ''
             ]);
+            debtId = debtResult.rows[0].id;
         }
 
         await db.query('COMMIT'); // ยืนยัน Transaction
-        res.json({ success: true, sale_id: saleId, message: 'บันทึกการขายสำเร็จ' });
+        res.json({ success: true, sale_id: saleId, debt_id: debtId, message: 'บันทึกการขายสำเร็จ' });
 
     } catch (err) {
         await db.query('ROLLBACK'); // ถ้ายกเลิกกลางคัน ให้ย้อนกลับทั้งหมด
