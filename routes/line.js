@@ -50,45 +50,52 @@ router.post('/webhook', webhookMiddleware, async (req, res) => {
 
 // ฟังก์ชันจัดการเหตุการณ์จาก LINE
 async function handleEvent(event) {
-    if (event.type === 'follow') {
-        // เมื่อมีคนแอดเพิ่มเพื่อน
+    if (event.type === 'follow' || event.type === 'unfollow') {
         const userId = event.source.userId;
-        const profile = await client.getProfile(userId);
         
         try {
-            // เช็คว่ามีในระบบไหม ถ้ามีแค่อัปเดตสถานะ ถ้าไม่มีให้เพิ่มใหม่
-            const existingRes = await db.query('SELECT * FROM customers WHERE line_user_id = $1', [userId]);
-            const existing = existingRes.rows[0];
-            
-            if (existing) {
-                await db.query(`
-                    UPDATE customers 
-                    SET is_line_friend = 1, display_name = $1, picture_url = $2 
-                    WHERE line_user_id = $3
-                `, [profile.displayName, profile.pictureUrl, userId]);
-            } else {
-                await db.query(`
-                    INSERT INTO customers (display_name, line_user_id, picture_url, is_line_friend)
-                    VALUES ($1, $2, $3, 1)
-                    ON CONFLICT (line_user_id) DO NOTHING
-                `, [profile.displayName, userId, profile.pictureUrl]);
+            if (event.type === 'follow') {
+                // ระวัง: event จำลองจากการกด Verify อาจจะหา Profile ไม่เจอ
+                let profile = { displayName: 'Unknown', pictureUrl: '' };
+                try {
+                    profile = await client.getProfile(userId);
+                } catch (e) {
+                    console.warn('⚠️ ไม่สามารถดึงโปรไฟล์ได้ (อาจเป็นการกด Verify Webhook)', e.message);
+                }
+                
+                const existingRes = await db.query('SELECT * FROM customers WHERE line_user_id = $1', [userId]);
+                const existing = existingRes.rows[0];
+                
+                if (existing) {
+                    await db.query(`
+                        UPDATE customers 
+                        SET is_line_friend = 1, display_name = $1, picture_url = $2 
+                        WHERE line_user_id = $3
+                    `, [profile.displayName, profile.pictureUrl, userId]);
+                } else {
+                    await db.query(`
+                        INSERT INTO customers (display_name, line_user_id, picture_url, is_line_friend)
+                        VALUES ($1, $2, $3, 1)
+                        ON CONFLICT (line_user_id) DO NOTHING
+                    `, [profile.displayName, userId, profile.pictureUrl]);
+                }
+                
+                // สำหรับ Verify Webhook Token จะเป็นค่าดัมมี่ ส่งข้อความตอบกลับไม่ได้
+                if (event.replyToken && event.replyToken !== '00000000000000000000000000000000') {
+                    return client.replyMessage({
+                        replyToken: event.replyToken,
+                        messages: [{
+                            type: 'text',
+                            text: `สวัสดีจ้า 🍪 ยินดีต้อนรับสู่ร้านขนมของเรา ขอบคุณที่แอดเราเป็นเพื่อนนะ!`
+                        }]
+                    });
+                }
+            } else if (event.type === 'unfollow') {
+                await db.query('UPDATE customers SET is_line_friend = 0 WHERE line_user_id = $1', [userId]);
             }
-            
-            // ส่งข้อความต้อนรับ
-            return client.replyMessage({
-                replyToken: event.replyToken,
-                messages: [{
-                    type: 'text',
-                    text: `สวัสดีจ้า 🍪 ยินดีต้อนรับสู่ร้านขนมของเรา ขอบคุณที่แอดเราเป็นเพื่อนนะ!`
-                }]
-            });
         } catch (error) {
-            console.error('DB Error on follow:', error);
+            console.error('DB/API Error on LINE event:', error);
         }
-    } 
-    else if (event.type === 'unfollow') {
-        const userId = event.source.userId;
-        await db.query('UPDATE customers SET is_line_friend = 0 WHERE line_user_id = $1', [userId]);
     }
 }
 
