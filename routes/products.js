@@ -127,30 +127,52 @@ router.patch('/:id/image', async (req, res) => {
     }
 });
 
-// ตั้งค่า Multer สำหรับอัปโหลดรูป
+// --------------------------------------------------
+// ตั้งค่า Multer & Cloudinary สำหรับอัปโหลดรูป
+// --------------------------------------------------
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-let uploadsDir = path.join(__dirname, '..', 'uploads');
-const glitchUploadsDir = path.join(__dirname, '..', '.data', 'uploads');
-if (fs.existsSync(path.join(__dirname, '..', '.data'))) {
-    if (!fs.existsSync(glitchUploadsDir)) fs.mkdirSync(glitchUploadsDir, { recursive: true });
-    uploadsDir = glitchUploadsDir;
+// เช็คว่ามีการตั้งค่า Cloudinary หรือไม่
+const isCloudinaryConfigured = !!process.env.CLOUDINARY_URL;
+
+let upload;
+
+if (isCloudinaryConfigured) {
+    // ☁️ ใช้ Cloudinary (สำหรับขึ้น Render)
+    const storage = new CloudinaryStorage({
+        cloudinary: cloudinary,
+        params: {
+            folder: 'snack-pos-uploads',
+            allowed_formats: ['jpg', 'jpeg', 'png', 'webp']
+        },
+    });
+    upload = multer({ storage: storage });
+    console.log('☁️ ตั้งค่าอัปโหลดรูปภาพผ่าน Cloudinary เรียบร้อย');
 } else {
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadsDir);
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'product-' + uniqueSuffix + path.extname(file.originalname));
+    // 💻 ใช้ Local Storage (สำหรับรันในเครื่องตัวเอง)
+    let uploadsDir = path.join(__dirname, '..', 'uploads');
+    const glitchUploadsDir = path.join(__dirname, '..', '.data', 'uploads');
+    if (fs.existsSync(path.join(__dirname, '..', '.data'))) {
+        if (!fs.existsSync(glitchUploadsDir)) fs.mkdirSync(glitchUploadsDir, { recursive: true });
+        uploadsDir = glitchUploadsDir;
+    } else {
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
     }
-});
-const upload = multer({ storage: storage });
+
+    const storage = multer.diskStorage({
+        destination: function (req, file, cb) { cb(null, uploadsDir); },
+        filename: function (req, file, cb) {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            cb(null, 'product-' + uniqueSuffix + path.extname(file.originalname));
+        }
+    });
+    upload = multer({ storage: storage });
+    console.warn('⚠️ Cloudinary ยังไม่ได้ตั้งค่า (รูปภาพจะถูกเซฟในเครื่อง ซึ่งอาจหายได้ถ้ารันบน Render)');
+}
 
 // POST /api/products/:id/upload — อัปโหลดรูปภาพสินค้า
 router.post('/:id/upload', upload.single('image'), async (req, res) => {
@@ -158,7 +180,14 @@ router.post('/:id/upload', upload.single('image'), async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ error: 'ไม่พบไฟล์รูปภาพ' });
         }
-        const imageUrl = '/uploads/' + req.file.filename;
+        
+        // ถ้าใช้ Cloudinary จะได้ .path หรือ .secure_url, ถ้า Local จะได้ .filename
+        let imageUrl = '';
+        if (isCloudinaryConfigured) {
+            imageUrl = req.file.path; // ลิงก์รูปจาก Cloudinary
+        } else {
+            imageUrl = '/uploads/' + req.file.filename; // ลิงก์รูปในเครื่อง
+        }
         
         await db.query(`
             UPDATE products 

@@ -15,10 +15,12 @@
   "license": "ISC",
   "dependencies": {
     "@line/bot-sdk": "^11.2.0",
+    "cloudinary": "^1.41.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "multer": "^2.2.0",
+    "multer-storage-cloudinary": "^4.0.0",
     "node-cron": "^4.6.0",
     "pg": "^8.22.0"
   }

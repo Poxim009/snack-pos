@@ -53,7 +53,7 @@ router.get('/', async (req, res) => {
 // POST /api/debts — ลงบัญชีลูกหนี้ใหม่
 // --------------------------------------------------
 router.post('/', async (req, res) => {
-    const { customer_id, amount, items_description, due_date, auto_remind } = req.body;
+    const { customer_id, amount, items_description, due_date, auto_remind, remind_frequency, remind_time, evidence_image_url } = req.body;
 
     if (!customer_id || !amount) {
         return res.status(400).json({ error: 'ข้อมูลไม่ครบถ้วน' });
@@ -61,15 +61,18 @@ router.post('/', async (req, res) => {
 
     try {
         const result = await db.query(`
-            INSERT INTO debts (customer_id, amount, items_description, due_date, auto_remind)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO debts (customer_id, amount, items_description, due_date, auto_remind, remind_frequency, remind_time, evidence_image_url)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING id
         `, [
             customer_id, 
             parseFloat(amount), 
             items_description || '', 
-            due_date || null, 
-            auto_remind !== undefined ? auto_remind : 1
+            due_date || null,
+            auto_remind !== undefined ? auto_remind : 1,
+            remind_frequency !== undefined ? remind_frequency : 1,
+            remind_time || '10:00',
+            evidence_image_url || ''
         ]);
         
         res.json({ success: true, id: result.rows[0].id });

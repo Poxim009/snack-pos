@@ -4,14 +4,21 @@
 
 let currentCart = [];
 let allProducts = [];
+let allCustomers = [];
 
 async function renderSales() {
     const container = document.getElementById('sales-content');
     container.innerHTML = '<div class="loading">กำลังโหลดสินค้า...</div>';
 
     try {
-        // โหลดสินค้าที่ขายอยู่ทั้งหมด
-        allProducts = await API.Products.getAll();
+        // โหลดสินค้าที่ขายอยู่ทั้งหมด และลูกค้าเผื่อต้องแปะโป้ง
+        const [products, customers] = await Promise.all([
+            API.Products.getAll(),
+            API.Customers.getAll()
+        ]);
+        
+        allProducts = products;
+        allCustomers = customers;
         
         let html = `
             <!-- ตะกร้าสินค้าด้านบน -->
@@ -228,6 +235,7 @@ function openCheckoutModal() {
         <div id="checkout-buttons" style="display: flex; gap: 10px; margin-top: 1rem;">
             <button class="btn btn-outline" style="flex: 1;" onclick="showCashPayment()">💵 เงินสด</button>
             <button class="btn btn-primary" style="flex: 1;" onclick="showQRPayment()">📱 สแกน QR</button>
+            <button class="btn btn-outline" style="flex: 1; border-color: var(--danger); color: var(--danger);" onclick="showDebtPayment()">📝 แปะโป้ง</button>
         </div>
         
         <!-- ส่วนรับเงินสด (จะแสดงเมื่อกดปุ่มเงินสด) -->
@@ -249,10 +257,57 @@ function openCheckoutModal() {
             <button id="checkout-cash-confirm-btn" class="btn btn-primary mt-2" style="width: 100%; font-size: 1.2rem; padding: 12px;" onclick="processPayment('cash')">✅ จบบิล (ทอนเงินแล้ว)</button>
         </div>
         
+        <!-- ส่วนแปะโป้งหนี้ -->
+        <div id="debt-payment-container" style="display: none; margin-top: 1rem; text-align: left;">
+            <div class="form-group">
+                <label class="form-label">เลือกลูกค้าที่ต้องการแปะโป้ง</label>
+                ${renderCustomCustomerSelect(allCustomers, 'debt_customer_id')}
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                    * ลูกค้าจะแอดเพิ่มได้อัตโนมัติเมื่อเขากดเพิ่มเพื่อน LINE OA ของคุณ
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">วันครบกำหนดจ่าย</label>
+                    <input type="date" id="debt_due_date" class="form-control" value="${getTodayString()}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">เวลาที่ทวง</label>
+                    <input type="time" id="debt_remind_time" class="form-control" value="10:00" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">ความถี่ในการทวงถามอัตโนมัติ</label>
+                <select id="debt_remind_frequency" class="form-control">
+                    <option value="1">ทุก 1 วัน</option>
+                    <option value="2">ทุก 2 วัน</option>
+                    <option value="3">ทุก 3 วัน</option>
+                    <option value="7">ทุก 7 วัน</option>
+                    <option value="0">ไม่ต้องทวงอัตโนมัติ</option>
+                </select>
+            </div>
+            
+            <div class="form-group text-center">
+                <label class="form-label">ถ่ายรูปหลักฐาน (ส่งพร้อมไลน์ทวงหนี้)</label>
+                <input type="hidden" id="pos_debt_evidence_image_url">
+                <input type="file" id="pos_debt_evidence_input" accept="image/*" capture="environment" style="display: none;" onchange="uploadEvidenceImage(this, 'pos_debt_evidence_preview', 'pos_debt_evidence_image_url')">
+                <button type="button" class="btn btn-outline" style="width: 100%;" onclick="document.getElementById('pos_debt_evidence_input').click()">📸 ถ่ายรูปหลักฐาน / เลือกรูป</button>
+                <img id="pos_debt_evidence_preview" src="" style="display: none; width: 100%; max-height: 200px; object-fit: contain; margin-top: 10px; border-radius: 8px; border: 1px solid var(--border);">
+            </div>
+            
+            <button class="btn mt-2" style="width: 100%; font-size: 1.2rem; padding: 12px; background: var(--danger); color: white;" onclick="processPayment('debt')">📝 ลงบัญชีหนี้ (แปะโป้ง)</button>
+        </div>
+        
         <button id="checkout-confirm-btn" class="btn btn-primary mt-2" style="display: none; width: 100%;" onclick="processPayment('promptpay')">✅ ยืนยันว่าได้รับเงินแล้ว (ปิดบิล)</button>
     `;
     
     openModal(html);
+    
+    // ตั้งค่า default due date ให้เป็น 2 วันข้างหน้า
+    const defaultDue = new Date();
+    defaultDue.setDate(defaultDue.getDate() + 2);
+    const dateInput = document.getElementById('debt_due_date');
+    if(dateInput) dateInput.value = defaultDue.toISOString().split('T')[0];
 }
 
 function updateCheckoutNetTotal() {
@@ -350,6 +405,15 @@ function showQRPayment() {
     document.getElementById('checkout-confirm-btn').style.display = 'block';
 }
 
+function showDebtPayment() {
+    // ซ่อนปุ่มเลือกจ่าย
+    document.getElementById('checkout-buttons').style.display = 'none';
+    document.getElementById('checkout-discount').disabled = true; // ล็อคส่วนลด
+    
+    // โชว์หน้าจอแปะโป้งหนี้
+    document.getElementById('debt-payment-container').style.display = 'block';
+}
+
 // กดคิดเงินเพื่อจบการขาย
 async function processPayment(paymentMethod) {
     if (currentCart.length === 0) return;
@@ -357,19 +421,42 @@ async function processPayment(paymentMethod) {
     const discountInput = document.getElementById('checkout-discount');
     const discount = parseFloat(discountInput ? discountInput.value : 0) || 0;
 
+    // เตรียม payload พื้นฐาน
+    const payload = { 
+        items: currentCart,
+        discount: discount,
+        payment_method: paymentMethod
+    };
+
+    // ถ้าเป็นการแปะโป้ง (debt) ต้องแนบข้อมูลลูกค้าและเวลาทวง
+    if (paymentMethod === 'debt') {
+        const customer_id = document.getElementById('hidden_debt_customer_id')?.value;
+        if (!customer_id) {
+            alert('กรุณาเลือกลูกค้าที่จะแปะโป้ง');
+            return;
+        }
+        payload.customer_id = customer_id;
+        payload.due_date = document.getElementById('debt_due_date')?.value;
+        payload.remind_time = document.getElementById('debt_remind_time')?.value;
+        payload.remind_frequency = parseInt(document.getElementById('debt_remind_frequency')?.value) || 0;
+        payload.evidence_image_url = document.getElementById('pos_debt_evidence_image_url')?.value || '';
+    }
+
     const btnSubmit = document.getElementById('checkout-confirm-btn');
-    if(btnSubmit) {
+    if(btnSubmit && paymentMethod === 'promptpay') {
         btnSubmit.disabled = true;
         btnSubmit.textContent = 'กำลังบันทึก...';
     }
 
     try {
-        await API.Sales.create({ 
-            items: currentCart,
-            discount: discount,
-            payment_method: paymentMethod
-        });
-        showToast(paymentMethod === 'cash' ? 'รับเงินสดเรียบร้อย!' : 'ปิดบิล QR Code เรียบร้อย!');
+        await API.Sales.create(payload);
+        
+        let msg = 'บันทึกเรียบร้อย!';
+        if (paymentMethod === 'cash') msg = 'รับเงินสดเรียบร้อย!';
+        if (paymentMethod === 'promptpay') msg = 'ปิดบิล QR Code เรียบร้อย!';
+        if (paymentMethod === 'debt') msg = 'ลงบัญชีลูกหนี้เรียบร้อย!';
+        
+        showToast(msg);
         
         // เคลียร์ตะกร้า
         currentCart = [];
@@ -377,9 +464,9 @@ async function processPayment(paymentMethod) {
         closeModal();
         
     } catch (error) {
-        if(btnSubmit) {
+        if(btnSubmit && paymentMethod === 'promptpay') {
             btnSubmit.disabled = false;
-            btnSubmit.textContent = 'ลองใหม่อีกครั้ง';
+            btnSubmit.textContent = '✅ ยืนยันว่าได้รับเงินแล้ว (ปิดบิล)';
         }
         alert('เกิดข้อผิดพลาด: ' + error.message);
     }

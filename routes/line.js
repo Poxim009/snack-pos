@@ -170,10 +170,27 @@ router.post('/send-reminder', async (req, res) => {
             }
         };
 
+        const messagesToSend = [message];
+
+        // ถ้ามีรูปหลักฐาน ให้ส่งไปด้วย
+        if (debt.evidence_image_url) {
+            // เช็คว่าลิงก์เป็น absolute url ไหม (เช่น ขึ้นต้นด้วย http) 
+            // กรณีเป็น localhost แบบไม่มี Cloudinary อาจจะไม่สามารถส่งผ่าน LINE ได้ เพราะ LINE ต้องการ public HTTPS url
+            // แต่เนื่องจากลูกค้าเลือกทางเลือก A (Cloudinary) ค่าที่ได้จะเป็น https:// ของ Cloudinary แน่นอน
+            const imageUrl = debt.evidence_image_url;
+            if (imageUrl.startsWith('http')) {
+                messagesToSend.push({
+                    type: 'image',
+                    originalContentUrl: imageUrl,
+                    previewImageUrl: imageUrl
+                });
+            }
+        }
+
         // ส่งข้อความไปหาลูกค้า (v11+ ใช้ object แทน positional args)
         await client.pushMessage({
             to: debt.line_user_id,
-            messages: [message]
+            messages: messagesToSend
         });
 
         // อัปเดตเวลาที่ส่งล่าสุดลง Database

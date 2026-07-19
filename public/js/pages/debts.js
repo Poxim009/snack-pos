@@ -115,10 +115,7 @@ function showAddDebtModal() {
         <form id="formAddDebt" onsubmit="submitDebt(event)">
             <div class="form-group">
                 <label class="form-label">ลูกค้า</label>
-                <select name="customer_id" class="form-control" required>
-                    <option value="" disabled selected>เลือกลูกค้า...</option>
-                    ${customerOptions}
-                </select>
+                ${renderCustomCustomerSelect(allCustomers, 'customer_id')}
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
                     * ลูกค้าจะแอดเพิ่มได้อัตโนมัติเมื่อเขากดเพิ่มเพื่อน LINE OA ของคุณ
                 </div>
@@ -131,9 +128,35 @@ function showAddDebtModal() {
                 <label class="form-label">รายการที่ซื้อ (บันทึกกันลืม)</label>
                 <input type="text" name="items_description" class="form-control" placeholder="เช่น คุกกี้ 2 ชิ้น, น้ำ 1 ขวด">
             </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">วันครบกำหนดจ่าย</label>
+                    <input type="date" name="due_date" class="form-control" value="${dueDateStr}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">เวลาที่ทวง</label>
+                    <input type="time" name="remind_time" class="form-control" value="10:00" required>
+                </div>
+            </div>
+            
             <div class="form-group">
-                <label class="form-label">วันครบกำหนดจ่าย</label>
-                <input type="date" name="due_date" class="form-control" value="${dueDateStr}" required>
+                <label class="form-label">ความถี่ในการทวงถามอัตโนมัติ</label>
+                <select name="remind_frequency" class="form-control">
+                    <option value="1">ทุก 1 วัน</option>
+                    <option value="2">ทุก 2 วัน</option>
+                    <option value="3">ทุก 3 วัน</option>
+                    <option value="7">ทุก 7 วัน</option>
+                    <option value="0">ไม่ต้องทวงอัตโนมัติ</option>
+                </select>
+            </div>
+            
+            <div class="form-group text-center">
+                <label class="form-label">ถ่ายรูปหลักฐาน (ส่งพร้อมไลน์ทวงหนี้)</label>
+                <input type="hidden" name="evidence_image_url" id="debt_evidence_image_url">
+                <input type="file" id="debt_evidence_input" accept="image/*" capture="environment" style="display: none;" onchange="uploadEvidenceImage(this, 'debt_evidence_preview', 'debt_evidence_image_url')">
+                <button type="button" class="btn btn-outline" style="width: 100%;" onclick="document.getElementById('debt_evidence_input').click()">📸 ถ่ายรูปหลักฐาน / เลือกรูป</button>
+                <img id="debt_evidence_preview" src="" style="display: none; width: 100%; max-height: 200px; object-fit: contain; margin-top: 10px; border-radius: 8px; border: 1px solid var(--border);">
             </div>
             
             <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">บันทึกลูกหนี้</button>
@@ -147,12 +170,22 @@ async function submitDebt(event) {
     const form = event.target;
     const btn = form.querySelector('button[type="submit"]');
     
+    // ดึงค่า customer_id จาก input hidden 
+    const customer_id = form.customer_id.value;
+    if (!customer_id) {
+        alert('กรุณาเลือกลูกค้า');
+        return;
+    }
+    
     const data = {
-        customer_id: form.customer_id.value,
+        customer_id: customer_id,
         amount: parseFloat(form.amount.value),
         items_description: form.items_description.value,
         due_date: form.due_date.value,
-        auto_remind: 1 // ค่า default ให้ทวงอัตโนมัติ
+        remind_time: form.remind_time.value,
+        remind_frequency: parseInt(form.remind_frequency.value),
+        auto_remind: form.remind_frequency.value !== "0" ? 1 : 0,
+        evidence_image_url: form.evidence_image_url?.value || ''
     };
     
     btn.disabled = true;

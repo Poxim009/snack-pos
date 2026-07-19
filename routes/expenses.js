@@ -4,25 +4,43 @@ const multer = require('multer');
 const path = require('path');
 const db = require('../database/db');
 
-// --- ตั้งค่า multer: เก็บรูปไว้ที่ไหน ชื่อไฟล์เป็นอะไร ---
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const fs = require('fs');
-        const glitchUploadsDir = path.join(__dirname, '..', '.data', 'uploads', 'receipts');
-        let uploadDir = path.join(__dirname, '..', 'uploads', 'receipts');
-        
-        if (fs.existsSync(path.join(__dirname, '..', '.data'))) {
-            if (!fs.existsSync(glitchUploadsDir)) fs.mkdirSync(glitchUploadsDir, { recursive: true });
-            uploadDir = glitchUploadsDir;
+// --- ตั้งค่า multer & Cloudinary: เก็บรูปไว้ที่ไหน ชื่อไฟล์เป็นอะไร ---
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const isCloudinaryConfigured = !!process.env.CLOUDINARY_URL;
+
+let upload;
+if (isCloudinaryConfigured) {
+    const storage = new CloudinaryStorage({
+        cloudinary: cloudinary,
+        params: {
+            folder: 'snack-pos-receipts',
+            allowed_formats: ['jpg', 'jpeg', 'png', 'webp']
+        },
+    });
+    upload = multer({ storage: storage });
+} else {
+    const storage = multer.diskStorage({
+        destination: (req, file, cb) => {
+            const fs = require('fs');
+            const glitchUploadsDir = path.join(__dirname, '..', '.data', 'uploads', 'receipts');
+            let uploadDir = path.join(__dirname, '..', 'uploads', 'receipts');
+            
+            if (fs.existsSync(path.join(__dirname, '..', '.data'))) {
+                if (!fs.existsSync(glitchUploadsDir)) fs.mkdirSync(glitchUploadsDir, { recursive: true });
+                uploadDir = glitchUploadsDir;
+            } else {
+                if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+            }
+            cb(null, uploadDir);
+        },
+        filename: (req, file, cb) => {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            cb(null, uniqueSuffix + path.extname(file.originalname));
         }
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-});
-const upload = multer({ storage: storage });
+    });
+    upload = multer({ storage: storage });
+}
 
 // --------------------------------------------------
 // หมวดหมู่รายจ่าย (Categories)
@@ -80,7 +98,15 @@ router.post('/', upload.single('image'), async (req, res) => {
 
     const today = new Date().toISOString().split('T')[0];
     const expenseDate = date || today;
-    const imagePath = req.file ? `/uploads/receipts/${req.file.filename}` : '';
+    
+    let imagePath = '';
+    if (req.file) {
+        if (isCloudinaryConfigured) {
+            imagePath = req.file.path; // ลิงก์จาก Cloudinary
+        } else {
+            imagePath = `/uploads/receipts/${req.file.filename}`; // ลิงก์ในเครื่อง
+        }
+    }
 
     try {
         const result = await db.query(`

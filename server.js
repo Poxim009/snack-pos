@@ -52,6 +52,7 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/customers', require('./routes/customers'));
 app.use('/api/debts', require('./routes/debts'));
 app.use('/api/line', require('./routes/line'));
+app.use('/api/upload', require('./routes/upload'));
 
 // --- Health Check: เช็คสถานะ DB ---
 app.get('/api/health', async (req, res) => {
@@ -86,10 +87,10 @@ app.get('/', (req, res) => {
 
 // --- เปิด server ---
 app.listen(PORT, () => {
-    console.log('');
-    console.log('🍪 ========================================');
-    console.log('🍪  ระบบคิดตังแบบโหด');
-    console.log(`🍪  เปิดแอปที่: http://localhost:${PORT}`);
-    console.log('🍪 ========================================');
-    console.log('');
+    console.log(`\n🚀 Server is running on http://localhost:${PORT}`);
+    console.log(`📡 รองรับการเชื่อมต่อจากทุก Network (0.0.0.0)`);
+    console.log(`\nพร้อมทำงานแล้ว! เปิดหน้าเว็บเพื่อใช้งานได้เลย`);
 });
+
+// --- เริ่มระบบ Cron Job (ทวงหนี้) ---
+require('./cron');

@@ -100,6 +100,29 @@ router.post('/', async (req, res) => {
             `, [item.quantity, item.product_id]);
         }
 
+        // 3. ถ้าจ่ายแบบแปะโป้ง (debt) ให้บันทึกหนี้ด้วย
+        if (finalPaymentMethod === 'debt') {
+            const { customer_id, due_date, remind_time, remind_frequency, evidence_image_url } = req.body;
+            if (!customer_id) throw new Error('ไม่พบข้อมูลลูกค้าสำหรับลงบัญชีหนี้');
+            
+            // สร้างคำอธิบายรวมๆ จากตะกร้าสินค้า
+            const itemsDescription = items.map(i => `${i.product_name} x${i.quantity}`).join(', ');
+            
+            await db.query(`
+                INSERT INTO debts (customer_id, amount, items_description, due_date, auto_remind, remind_frequency, remind_time, evidence_image_url)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [
+                customer_id, 
+                netTotal, 
+                itemsDescription, 
+                due_date || null,
+                remind_frequency && remind_frequency !== 0 ? 1 : 0,
+                remind_frequency || 1,
+                remind_time || '10:00',
+                evidence_image_url || ''
+            ]);
+        }
+
         await db.query('COMMIT'); // ยืนยัน Transaction
         res.json({ success: true, sale_id: saleId, message: 'บันทึกการขายสำเร็จ' });
 
