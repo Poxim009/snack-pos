@@ -2,7 +2,7 @@
 // pages/debts.js — หน้าลูกหนี้ (ระบบทวงหนี้)
 // ============================================================
 
-let allCustomers = [];
+let debtsCustomers = [];
 
 async function renderDebts() {
     const container = document.getElementById('debts-content');
@@ -16,7 +16,7 @@ async function renderDebts() {
         ]);
         
         // โหลดรายชื่อลูกค้าเตรียมไว้สำหรับตอนเพิ่มหนี้
-        allCustomers = await API.Customers.getAll();
+        debtsCustomers = await API.Customers.getAll();
         
         let html = `
             ${!lineStatus.configured ? `
@@ -96,26 +96,21 @@ async function renderDebts() {
 // ลงบัญชีหนี้ใหม่
 // ------------------------------------------------------------------
 function showAddDebtModal() {
-    if (allCustomers.length === 0) {
+    if (debtsCustomers.length === 0) {
         alert('กรุณาเพิ่มข้อมูลลูกค้าในเมนู "ตั้งค่า" ก่อนครับ');
         return;
     }
     
-    // ตั้งค่าวันครบกำหนดเริ่มต้นเป็น 2 วันข้างหน้า
-    const defaultDue = new Date();
-    defaultDue.setDate(defaultDue.getDate() + 2);
-    const dueDateStr = defaultDue.toISOString().split('T')[0];
-
-    const customerOptions = allCustomers.map(c => 
-        `<option value="${c.id}">${c.display_name} ${c.is_line_friend ? '(ผูก LINE แล้ว)' : ''}</option>`
-    ).join('');
-
+    // ตั้งค่า default ของ date และ time
+    const defaultDate = new Date();
+    const dueDateStr = defaultDate.toISOString().split('T')[0];
+    
     const html = `
-        ${getModalHeader('ลงบัญชีลูกหนี้')}
+        ${getModalHeader('เพิ่มลูกหนี้')}
         <form id="formAddDebt" onsubmit="submitDebt(event)">
             <div class="form-group">
                 <label class="form-label">ลูกค้า</label>
-                ${renderCustomCustomerSelect(allCustomers, 'customer_id')}
+                ${renderCustomCustomerSelect(debtsCustomers, 'customer_id')}
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
                     * ลูกค้าจะแอดเพิ่มได้อัตโนมัติเมื่อเขากดเพิ่มเพื่อน LINE OA ของคุณ
                 </div>

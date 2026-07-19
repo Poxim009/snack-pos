@@ -4,7 +4,7 @@
 
 let currentCart = [];
 let allProducts = [];
-let allCustomers = [];
+let salesCustomers = [];
 
 async function renderSales() {
     const container = document.getElementById('sales-content');
@@ -18,7 +18,7 @@ async function renderSales() {
         ]);
         
         allProducts = products;
-        allCustomers = customers;
+        salesCustomers = customers;
         
         let html = `
             <!-- ตะกร้าสินค้าด้านบน -->
@@ -261,7 +261,7 @@ function openCheckoutModal() {
         <div id="debt-payment-container" style="display: none; margin-top: 1rem; text-align: left;">
             <div class="form-group">
                 <label class="form-label">เลือกลูกค้าที่ต้องการแปะโป้ง</label>
-                ${renderCustomCustomerSelect(allCustomers, 'debt_customer_id')}
+                ${renderCustomCustomerSelect(salesCustomers, 'debt_customer_id')}
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
                     * ลูกค้าจะแอดเพิ่มได้อัตโนมัติเมื่อเขากดเพิ่มเพื่อน LINE OA ของคุณ
                 </div>
