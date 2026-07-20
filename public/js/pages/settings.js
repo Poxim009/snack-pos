@@ -206,46 +206,67 @@ async function loadProductsForSettings() {
 }
 
 async function editProductImage(id, name) {
-    // 1. สร้าง input type="file" แบบซ่อน
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
+    const bg = document.createElement('div');
+    bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
     
-    // 2. เมื่อผู้ใช้เลือกไฟล์
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        // ตรวจสอบขนาดไฟล์ (ไม่เกิน 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            alert('ขนาดไฟล์ใหญ่เกินไป (สูงสุด 5MB)');
-            return;
-        }
+    const modal = document.createElement('div');
+    modal.style.cssText = 'background:white;padding:20px;border-radius:12px;text-align:center;width:300px;box-shadow: 0 10px 25px rgba(0,0,0,0.2);';
+    modal.innerHTML = `
+        <h3 style="margin-bottom:15px;font-size:1.1rem;color:#333;">อัปเดตรูป: ${name}</h3>
+        <p style="margin-bottom:15px;font-size:0.85rem;color:#666;">เลือกวิธีอัปโหลดรูปภาพ (ป้องกันแอปเด้งให้ใช้แกลเลอรี)</p>
+        <button id="btn-cam" class="btn btn-primary" style="width:100%;margin-bottom:10px;">📸 ถ่ายรูปสด (เปิดกล้อง)</button>
+        <button id="btn-gal" class="btn btn-outline" style="width:100%;margin-bottom:15px;">🖼️ เลือกจากคลังภาพ (Gallery)</button>
+        <button id="btn-cancel" class="btn" style="background:#eee;color:#333;width:100%;">✕ ยกเลิก</button>
+    `;
+    bg.appendChild(modal);
+    document.body.appendChild(bg);
 
-        const formData = new FormData();
-        formData.append('image', file);
+    const cleanup = () => document.body.removeChild(bg);
+
+    const triggerUpload = (useCamera) => {
+        cleanup();
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        if (useCamera) input.capture = 'environment';
         
-        showToast('กำลังอัปโหลดรูปภาพ...');
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            if (file.size > 5 * 1024 * 1024) {
+                alert('ขนาดไฟล์ใหญ่เกินไป (สูงสุด 5MB)');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            showToast('กำลังอัปโหลดรูปภาพ...');
+            
+            try {
+                const res = await fetch(`/api/products/${id}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to upload image');
+                
+                showToast('อัปโหลดรูปภาพสำเร็จ!');
+                loadProductsForSettings();
+            } catch (error) {
+                alert('อัปโหลดล้มเหลว: ' + error.message);
+            }
+        };
         
-        try {
-            const res = await fetch(`/api/products/${id}/upload`, {
-                method: 'POST',
-                body: formData
-            });
-            
-            const data = await res.json();
-            
-            if (!res.ok) throw new Error(data.error || 'Failed to upload image');
-            
-            showToast('อัปโหลดรูปภาพสำเร็จ!');
-            loadProductsForSettings(); // โหลดรายการสินค้าใหม่เพื่อแสดงรูป
-        } catch (error) {
-            alert('อัปโหลดล้มเหลว: ' + error.message);
-        }
+        input.click();
     };
-    
-    // 3. จำลองการคลิกเพื่อเปิด Gallery
-    input.click();
+
+    document.getElementById('btn-cam').onclick = () => triggerUpload(true);
+    document.getElementById('btn-gal').onclick = () => triggerUpload(false);
+    document.getElementById('btn-cancel').onclick = cleanup;
+    bg.onclick = (e) => { if(e.target === bg) cleanup(); };
 }
 
 async function showAddProductModal() {

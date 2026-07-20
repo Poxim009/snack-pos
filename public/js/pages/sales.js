@@ -290,8 +290,12 @@ function openCheckoutModal() {
             <div class="form-group text-center">
                 <label class="form-label">ถ่ายรูปหลักฐาน (ส่งพร้อมไลน์ทวงหนี้)</label>
                 <input type="hidden" id="pos_debt_evidence_image_url">
-                <input type="file" id="pos_debt_evidence_input" accept="image/*" capture="environment" style="display: none;" onchange="uploadEvidenceImage(this, 'pos_debt_evidence_preview', 'pos_debt_evidence_image_url')">
-                <button type="button" class="btn btn-outline" style="width: 100%;" onclick="document.getElementById('pos_debt_evidence_input').click()">📸 ถ่ายรูปหลักฐาน / เลือกรูป</button>
+                <input type="file" id="pos_debt_evidence_input_cam" accept="image/*" capture="environment" style="display: none;" onchange="uploadEvidenceImage(this, 'pos_debt_evidence_preview', 'pos_debt_evidence_image_url')">
+                <input type="file" id="pos_debt_evidence_input_gal" accept="image/*" style="display: none;" onchange="uploadEvidenceImage(this, 'pos_debt_evidence_preview', 'pos_debt_evidence_image_url')">
+                <div style="display: flex; gap: 8px; width: 100%;">
+                    <button type="button" class="btn btn-outline" style="flex: 1; padding: 0.5rem;" onclick="document.getElementById('pos_debt_evidence_input_cam').click()">📸 ถ่ายภาพ</button>
+                    <button type="button" class="btn btn-outline" style="flex: 1; padding: 0.5rem;" onclick="document.getElementById('pos_debt_evidence_input_gal').click()">🖼️ เปิดแกลเลอรี</button>
+                </div>
                 <img id="pos_debt_evidence_preview" src="" style="display: none; width: 100%; max-height: 200px; object-fit: contain; margin-top: 10px; border-radius: 8px; border: 1px solid var(--border);">
             </div>
             

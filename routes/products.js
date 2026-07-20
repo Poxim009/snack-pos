@@ -200,5 +200,59 @@ router.post('/:id/upload', upload.single('image'), async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// POST /api/products/sync-shopee — อัปเดตรูปสินค้าจาก Shopee อัตโนมัติ
+router.post('/sync-shopee', async (req, res) => {
+    try {
+        const { products: shopeeProducts } = req.body;
+        if (!shopeeProducts || !Array.isArray(shopeeProducts)) {
+            return res.status(400).json({ error: 'ข้อมูลไม่ถูกต้อง' });
+        }
+
+        // ดึงสินค้าทั้งหมดจากฐานข้อมูล
+        const dbResult = await db.query('SELECT id, name, image_url FROM products');
+        const dbProducts = dbResult.rows;
+
+        let updatedCount = 0;
+
+        for (const dbP of dbProducts) {
+            // ถ้ารูปเป็น cloudinary อยู่แล้ว ข้ามได้เลย (ยกเว้นอยากให้อัปเดตทับ)
+            // แต่เคสนี้ยอมให้อัปเดตทับถ้าเจอรูปจาก Shopee จะได้รูปสวยๆ
+
+            const dbName = dbP.name.toLowerCase().replace(/\s+/g, '');
+            let bestMatch = null;
+            let highestScore = 0;
+
+            for (const sp of shopeeProducts) {
+                const spName = sp.name.toLowerCase().replace(/\s+/g, '');
+                
+                let score = 0;
+                // ถ้าชื่อมีคำซ้อนกันโดยสมบูรณ์
+                if (dbName.includes(spName) || spName.includes(dbName)) {
+                    score += 10;
+                }
+                
+                if (score > highestScore) {
+                    highestScore = score;
+                    bestMatch = sp;
+                }
+            }
+
+            // ถ้าคะแนนเยอะพอ (เจอคู่ที่ตรงกัน)
+            if (bestMatch && highestScore > 0) {
+                await db.query(`
+                    UPDATE products 
+                    SET image_url = $1 
+                    WHERE id = $2
+                `, [bestMatch.image, dbP.id]);
+                updatedCount++;
+            }
+        }
+
+        res.json({ success: true, updated: updatedCount, message: `อัปเดตรูปสำเร็จ ${updatedCount} รายการ` });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 module.exports = router;
