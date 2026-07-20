@@ -61,7 +61,10 @@ async function renderDebts() {
                                     </div>
                                 </div>
                                 <div class="text-right">
-                                    <div class="item-price text-danger">ค้าง ${formatCurrency(remaining)}</div>
+                                    <div class="flex justify-end align-center gap-1 mb-1">
+                                        <div class="item-price text-danger" style="font-size:1.1rem;">ค้าง ${formatCurrency(remaining)}</div>
+                                        <span onclick="deleteDebt(${d.id})" style="cursor: pointer; color: #888; font-size: 1.2rem; padding: 2px; margin-left: 5px; background: #ffeeee; border-radius: 4px;" title="ลบรายการผิด (และคืนสต๊อก)">🗑️</span>
+                                    </div>
                                     <div class="item-subtitle">จากทั้งหมด ${formatCurrency(d.amount)}</div>
                                 </div>
                             </div>
@@ -253,5 +256,24 @@ async function submitPayDebt(event, debtId) {
         renderDebts();
     } catch (error) {
         btn.disabled = false;
+    }
+}
+
+// ------------------------------------------------------------------
+// ลบรายการหนี้ที่ลงผิด
+// ------------------------------------------------------------------
+async function deleteDebt(debtId) {
+    if (!confirm('🗑️ คุณแน่ใจหรือไม่ว่าต้องการ "ลบรายการหนี้นี้"?\n(หากเป็นการลงผิด ระบบจะลบรายการทิ้ง และคืนสต๊อกสินค้าให้ตามเดิม)')) return;
+    
+    try {
+        const res = await fetch(`/api/debts/${debtId}`, { method: 'DELETE' });
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.error || 'ลบข้อมูลล้มเหลว');
+        
+        showToast('ลบรายการหนี้ และคืนสต๊อกเรียบร้อยแล้ว!');
+        renderDebts();
+    } catch (error) {
+        alert('เกิดข้อผิดพลาด: ' + error.message);
     }
 }

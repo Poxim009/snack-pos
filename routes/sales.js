@@ -110,11 +110,12 @@ router.post('/', async (req, res) => {
             const itemsDescription = items.map(i => `${i.product_name} x${i.quantity}`).join(', ');
             
             const debtResult = await db.query(`
-                INSERT INTO debts (customer_id, amount, items_description, due_date, auto_remind, remind_frequency, remind_time, evidence_image_url)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                INSERT INTO debts (customer_id, sale_id, amount, items_description, due_date, auto_remind, remind_frequency, remind_time, evidence_image_url)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 RETURNING id
             `, [
                 customer_id, 
+                saleId,
                 netTotal, 
                 itemsDescription, 
                 due_date || null,

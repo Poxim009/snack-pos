@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS customers (
 CREATE TABLE IF NOT EXISTS debts (
     id                SERIAL PRIMARY KEY,
     customer_id       INTEGER NOT NULL REFERENCES customers(id),
+    sale_id           INTEGER REFERENCES sales(id) ON DELETE CASCADE,
     amount            REAL    NOT NULL,
     paid_amount       REAL    DEFAULT 0,
     items_description TEXT    DEFAULT '',

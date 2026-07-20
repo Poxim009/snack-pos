@@ -129,10 +129,30 @@ router.put('/:id/pay', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     try {
         await db.query('BEGIN');
+        
+        // ตรวจสอบว่าหนี้นี้เชื่อมกับบิลขาย (sale) หรือไม่
+        const debtResult = await db.query('SELECT sale_id FROM debts WHERE id = $1', [req.params.id]);
+        if (debtResult.rows.length === 0) {
+            throw new Error('ไม่พบข้อมูลหนี้');
+        }
+        
+        const saleId = debtResult.rows[0].sale_id;
+
         await db.query('DELETE FROM debt_reminders WHERE debt_id = $1', [req.params.id]);
         await db.query('DELETE FROM debts WHERE id = $1', [req.params.id]);
+        
+        // ถ้ามี sale_id ให้ลบบิลขายและคืนสต๊อก
+        if (saleId) {
+            const itemsResult = await db.query('SELECT product_id, quantity FROM sale_items WHERE sale_id = $1', [saleId]);
+            for (const item of itemsResult.rows) {
+                await db.query(`UPDATE products SET stock_qty = stock_qty + $1 WHERE id = $2`, [item.quantity, item.product_id]);
+            }
+            await db.query('DELETE FROM sale_items WHERE sale_id = $1', [saleId]);
+            await db.query('DELETE FROM sales WHERE id = $1', [saleId]);
+        }
+
         await db.query('COMMIT');
-        res.json({ success: true });
+        res.json({ success: true, message: 'ลบรายการหนี้สำเร็จ' });
     } catch (err) {
         await db.query('ROLLBACK');
         res.status(500).json({ error: err.message });
