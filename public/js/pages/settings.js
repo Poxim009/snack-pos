@@ -188,7 +188,10 @@ async function loadProductsForSettings() {
                         <div style="position: absolute; bottom: -5px; right: -5px; background: white; border-radius: 50%; padding: 2px; font-size: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">➕</div>
                     </div>
                     <div>
-                        <div class="item-title">${p.name}</div>
+                        <div class="item-title flex align-center gap-1">
+                            ${p.name}
+                            <span onclick="editProductName(${p.id}, '${p.name}')" style="cursor:pointer; font-size: 0.9rem; color: #888; background: #eee; padding: 2px 6px; border-radius: 4px;" title="เปลี่ยนชื่อ">✏️</span>
+                        </div>
                         <div class="item-subtitle">ขาย ฿${p.sell_price} (สต๊อก: ${p.stock_qty})</div>
                     </div>
                 </div>
@@ -267,6 +270,29 @@ async function editProductImage(id, name) {
     document.getElementById('btn-gal').onclick = () => triggerUpload(false);
     document.getElementById('btn-cancel').onclick = cleanup;
     bg.onclick = (e) => { if(e.target === bg) cleanup(); };
+}
+
+async function editProductName(id, currentName) {
+    const newName = prompt(`กรุณาใส่ชื่อสินค้าใหม่:\n(เดิม: ${currentName})`, currentName);
+    if (!newName || newName.trim() === '' || newName === currentName) {
+        return; // ยกเลิก หรือไม่ได้เปลี่ยนชื่อ
+    }
+
+    try {
+        const res = await fetch(`/api/products/${id}/name`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName.trim() })
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to rename product');
+        
+        showToast('เปลี่ยนชื่อสินค้าเรียบร้อย!');
+        loadProductsForSettings(); // โหลดใหม่เพื่ออัปเดตหน้าจอ
+    } catch (error) {
+        alert('เปลี่ยนชื่อล้มเหลว: ' + error.message);
+    }
 }
 
 async function showAddProductModal() {

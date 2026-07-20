@@ -127,6 +127,27 @@ router.patch('/:id/image', async (req, res) => {
     }
 });
 
+// PATCH /api/products/:id/name — แก้ไขชื่อสินค้า
+router.patch('/:id/name', async (req, res) => {
+    const { name } = req.body;
+    
+    if (!name || name.trim() === '') {
+        return res.status(400).json({ error: 'กรุณาระบุชื่อสินค้า' });
+    }
+
+    try {
+        await db.query(`
+            UPDATE products 
+            SET name = $1 
+            WHERE id = $2
+        `, [name.trim(), req.params.id]);
+        
+        res.json({ success: true, message: 'เปลี่ยนชื่อสินค้าเรียบร้อย' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --------------------------------------------------
 // ตั้งค่า Multer & Cloudinary สำหรับอัปโหลดรูป
 // --------------------------------------------------
