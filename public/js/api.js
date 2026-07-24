@@ -65,7 +65,9 @@ const API = {
     Analytics: {
         getSummary: (period = 'today') => fetchAPI(`/analytics/summary?period=${period}`),
         getTopProducts: (period = 'week') => fetchAPI(`/analytics/top-products?period=${period}`),
-        getDaily: (days = 7) => fetchAPI(`/analytics/daily?days=${days}`)
+        getDaily: (days = 7) => fetchAPI(`/analytics/daily?days=${days}`),
+        getCalendar: (year, month) => fetchAPI(`/analytics/calendar?year=${year}&month=${month}`),
+        getDailyDetails: (date) => fetchAPI(`/analytics/daily-details?date=${date}`)
     },
     
     Debts: {

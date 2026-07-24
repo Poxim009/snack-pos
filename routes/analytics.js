@@ -154,4 +154,119 @@ router.get('/daily', async (req, res) => {
     }
 });
 
+// --------------------------------------------------
+// GET /api/analytics/calendar — ดึงข้อมูลรายวันสำหรับปฏิทิน (ทั้งเดือน)
+// --------------------------------------------------
+router.get('/calendar', async (req, res) => {
+    const { year, month } = req.query;
+    const now = new Date();
+    const y = parseInt(year) || now.getFullYear();
+    const m = parseInt(month) || (now.getMonth() + 1);
+
+    // ช่วงวันที่ทั้งเดือน
+    const firstDay = `${y}-${String(m).padStart(2,'0')}-01`;
+    const lastDay = new Date(y, m, 0).toISOString().split('T')[0];
+
+    try {
+        // รวมยอดขายแต่ละวัน
+        const salesRes = await db.query(`
+            SELECT date, COALESCE(SUM(total_amount),0) as total_sales, COUNT(*) as bill_count
+            FROM sales
+            WHERE date BETWEEN $1 AND $2
+            GROUP BY date
+        `, [firstDay, lastDay]);
+
+        // รวมรายจ่ายแต่ละวัน
+        const expRes = await db.query(`
+            SELECT date, COALESCE(SUM(amount),0) as total_expenses
+            FROM expenses
+            WHERE date BETWEEN $1 AND $2
+            GROUP BY date
+        `, [firstDay, lastDay]);
+
+        // รวมข้อมูลเป็น map
+        const dataMap = {};
+        salesRes.rows.forEach(r => {
+            dataMap[r.date] = { ...dataMap[r.date], total_sales: parseFloat(r.total_sales), bill_count: parseInt(r.bill_count) };
+        });
+        expRes.rows.forEach(r => {
+            dataMap[r.date] = { ...dataMap[r.date], total_expenses: parseFloat(r.total_expenses) };
+        });
+
+        res.json(dataMap);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
+// GET /api/analytics/daily-details — ดูรายละเอียดทุกรายการในวันนั้น
+// --------------------------------------------------
+router.get('/daily-details', async (req, res) => {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ error: 'กรุณาระบุวันที่' });
+
+    try {
+        // บิลขายทั้งหมดของวันนั้น + รายการสินค้าในแต่ละบิล
+        const salesRes = await db.query(`
+            SELECT s.id, s.total_amount, s.note, s.created_at,
+                   JSON_AGG(
+                       JSON_BUILD_OBJECT(
+                           'product_name', si.product_name,
+                           'quantity', si.quantity,
+                           'unit_price', si.unit_price,
+                           'subtotal', si.subtotal
+                       ) ORDER BY si.id
+                   ) as items
+            FROM sales s
+            LEFT JOIN sale_items si ON s.id = si.sale_id
+            WHERE s.date = $1
+            GROUP BY s.id
+            ORDER BY s.created_at ASC
+        `, [date]);
+
+        // รายจ่ายของวันนั้น
+        const expRes = await db.query(`
+            SELECT e.id, e.description, e.amount, e.note, e.created_at,
+                   c.name as category_name, c.emoji as category_emoji
+            FROM expenses e
+            LEFT JOIN expense_categories c ON e.category_id = c.id
+            WHERE e.date = $1
+            ORDER BY e.created_at ASC
+        `, [date]);
+
+        // Peak hour analysis
+        const peakRes = await db.query(`
+            SELECT EXTRACT(HOUR FROM s.created_at AT TIME ZONE 'Asia/Bangkok') as hour,
+                   COUNT(*) as bill_count,
+                   COALESCE(SUM(s.total_amount), 0) as total
+            FROM sales s
+            WHERE s.date = $1
+            GROUP BY hour
+            ORDER BY total DESC
+        `, [date]);
+
+        // Top items of the day
+        const topItemsRes = await db.query(`
+            SELECT si.product_name, SUM(si.quantity) as total_qty, SUM(si.subtotal) as total_revenue
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            WHERE s.date = $1
+            GROUP BY si.product_name
+            ORDER BY total_qty DESC
+            LIMIT 5
+        `, [date]);
+
+        res.json({
+            date,
+            sales: salesRes.rows,
+            expenses: expRes.rows,
+            peak_hours: peakRes.rows,
+            top_items: topItemsRes.rows
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
