@@ -34,6 +34,196 @@ router.get('/status', (req, res) => {
 const webhookMiddleware = isLineConfigured ? line.middleware(lineConfig) : (req, res, next) => next();
 
 // --------------------------------------------------
+// POST /api/line/remind-customer/:customerId — ส่งข้อความทวงหนี้รวมทุกบิลของลูกค้า
+// --------------------------------------------------
+router.post('/remind-customer/:customerId', async (req, res) => {
+    try {
+        const customerId = req.params.customerId;
+        
+        // ดึงข้อมูลลูกค้า
+        const custResult = await db.query('SELECT * FROM customers WHERE id = $1', [customerId]);
+        if (custResult.rows.length === 0) return res.status(404).json({ error: 'ไม่พบข้อมูลลูกค้า' });
+        const customer = custResult.rows[0];
+        
+        if (!customer.line_user_id) return res.status(400).json({ error: 'ลูกค้านี้ยังไม่ได้เชื่อม LINE' });
+
+        // ดึงหนี้ทั้งหมดที่ยังค้าง
+        const debtsResult = await db.query(`
+            SELECT * FROM debts 
+            WHERE customer_id = $1 AND status IN ('pending', 'partial')
+            ORDER BY created_at ASC
+        `, [customerId]);
+
+        const debts = debtsResult.rows;
+        if (debts.length === 0) return res.status(400).json({ error: 'ลูกค้านี้ไม่มีหนี้ค้างชำระ' });
+
+        let totalRemaining = 0;
+        let billDetails = [];
+        let imageUrls = [];
+
+        debts.forEach((d, index) => {
+            const remaining = d.amount - d.paid_amount;
+            totalRemaining += remaining;
+            billDetails.push(`บิล ${index+1}: ${d.items_description || '-'} (ค้าง ฿${remaining})`);
+            if (d.evidence_image_url && imageUrls.length < 4) {
+                // เก็บภาพบิลไว้ส่ง (LINE ส่งรูปได้สูงสุด 5 อันต่อครั้งรวมข้อความ)
+                imageUrls.push(d.evidence_image_url);
+            }
+        });
+
+        // ข้อความทวงหนี้รวม
+        const message = {
+            type: 'flex',
+            altText: 'สรุปยอดค้างชำระ 💸',
+            contents: {
+                type: "bubble",
+                header: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [{
+                        type: "text",
+                        text: "สรุปยอดค้างชำระทั้งหมด",
+                        weight: "bold",
+                        color: "#ffffff",
+                        size: "lg"
+                    }],
+                    backgroundColor: "#EF4444"
+                },
+                body: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [
+                        { type: "text", text: `สวัสดีคุณ ${customer.display_name}`, margin: "md" },
+                        { type: "text", text: `คุณมียอดค้างชำระรวม ${debts.length} บิล`, margin: "sm" },
+                        { type: "text", text: `ยอดค้างทั้งหมด: ฿${totalRemaining}`, weight: "bold", size: "xl", color: "#EF4444", margin: "md" },
+                        { type: "text", text: billDetails.join('\n'), size: "sm", color: "#666666", margin: "sm", wrap: true }
+                    ]
+                },
+                footer: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [
+                        {
+                            type: "button",
+                            style: "primary",
+                            color: "#10B981",
+                            action: {
+                                type: "message",
+                                label: "โอนเงินแล้ว",
+                                text: "โอนเงินแล้วจ้า"
+                            }
+                        }
+                    ]
+                }
+            }
+        };
+
+        const messagesToSend = [message];
+
+        // แถมรูปหลักฐานไปด้วย
+        imageUrls.forEach(url => {
+            messagesToSend.push({
+                type: 'image',
+                originalContentUrl: url,
+                previewImageUrl: url
+            });
+        });
+
+        await client.pushMessage({ to: customer.line_user_id, messages: messagesToSend });
+
+        res.json({ success: true, message: 'ส่งข้อความทวงหนี้รวมสำเร็จ' });
+
+    } catch (err) {
+        console.error('Error sending customer reminder:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
+// POST /api/line/remind/:debtId — ส่งข้อความทวงหนี้รายบิล (อันเก่าเก็บไว้เผื่อใช้)
+// --------------------------------------------------
+router.post('/remind/:debtId', async (req, res) => {
+    try {
+        const debtId = req.params.debtId;
+        const result = await db.query(`
+            SELECT d.*, c.display_name, c.line_user_id
+            FROM debts d
+            JOIN customers c ON d.customer_id = c.id
+            WHERE d.id = $1
+        `, [debtId]);
+
+        const debt = result.rows[0];
+        if (!debt) return res.status(404).json({ error: 'ไม่พบข้อมูลหนี้' });
+        if (!debt.line_user_id) return res.status(400).json({ error: 'ลูกค้านี้ยังไม่ได้เชื่อม LINE' });
+        
+        const remaining = debt.amount - debt.paid_amount;
+        if (remaining <= 0) return res.status(400).json({ error: 'หนี้นี้จ่ายครบแล้ว' });
+
+        const message = {
+            type: 'flex',
+            altText: 'บิลเรียกเก็บเงิน 💸',
+            contents: {
+                type: "bubble",
+                header: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [{
+                        type: "text",
+                        text: "แจ้งเตือนยอดค้างชำระ",
+                        weight: "bold",
+                        color: "#ffffff",
+                        size: "lg"
+                    }],
+                    backgroundColor: "#EF4444"
+                },
+                body: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [
+                        { type: "text", text: `สวัสดีคุณ ${debt.display_name}`, margin: "md" },
+                        { type: "text", text: "คุณมียอดค้างชำระกับทางร้าน", margin: "sm" },
+                        { type: "text", text: `ยอดค้าง: ฿${remaining}`, weight: "bold", size: "xl", color: "#EF4444", margin: "md" },
+                        { type: "text", text: `รายละเอียด: ${debt.items_description || '-'}`, size: "sm", color: "#666666", margin: "sm", wrap: true }
+                    ]
+                },
+                footer: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [
+                        {
+                            type: "button",
+                            style: "primary",
+                            color: "#10B981",
+                            action: {
+                                type: "message",
+                                label: "โอนเงินแล้ว",
+                                text: "โอนเงินแล้วจ้า"
+                            }
+                        }
+                    ]
+                }
+            }
+        };
+
+        const messagesToSend = [message];
+        if (debt.evidence_image_url) {
+            messagesToSend.push({
+                type: 'image',
+                originalContentUrl: debt.evidence_image_url,
+                previewImageUrl: debt.evidence_image_url
+            });
+        }
+
+        await client.pushMessage({ to: debt.line_user_id, messages: messagesToSend });
+        res.json({ success: true, message: 'ส่งข้อความสำเร็จ' });
+
+    } catch (err) {
+        console.error('Error sending reminder:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
 // POST /api/line/webhook — รับข้อความ/เหตุการณ์จาก LINE
 // --------------------------------------------------
 router.post('/webhook', webhookMiddleware, async (req, res) => {

@@ -86,6 +86,7 @@ const API = {
     Line: {
         getStatus: () => fetchAPI('/line/status'),
         sendReminder: (debtId) => fetchAPI('/line/send-reminder', { method: 'POST', body: JSON.stringify({ debt_id: debtId }) }),
+        sendCustomerReminder: (customerId) => fetchAPI(`/line/remind-customer/${customerId}`, { method: 'POST' }),
         notifyNewDebt: (debtId) => fetchAPI('/line/notify-new-debt', { method: 'POST', body: JSON.stringify({ debt_id: debtId }) })
     }
 };

@@ -18,10 +18,30 @@ async function renderDebts() {
         // โหลดรายชื่อลูกค้าเตรียมไว้สำหรับตอนเพิ่มหนี้
         debtsCustomers = await API.Customers.getAll();
         
+        // จัดกลุ่มหนี้ตามลูกค้า
+        const customerDebts = {};
+        debts.forEach(d => {
+            if (!customerDebts[d.customer_id]) {
+                customerDebts[d.customer_id] = {
+                    customer_id: d.customer_id,
+                    display_name: d.display_name,
+                    picture_url: d.picture_url,
+                    is_line_friend: d.is_line_friend,
+                    total_remaining: 0,
+                    bills: []
+                };
+            }
+            const remaining = d.amount - d.paid_amount;
+            customerDebts[d.customer_id].total_remaining += remaining;
+            customerDebts[d.customer_id].bills.push({ ...d, remaining });
+        });
+        
+        const groupedDebts = Object.values(customerDebts);
+        
         let html = `
             ${!lineStatus.configured ? `
                 <div style="background: var(--warning); color: white; padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1rem; font-size: 0.9rem;">
-                    ⚠️ ยังไม่ได้ตั้งค่า LINE OA ระบบจะไม่สามารถส่งข้อความทวงหนี้ได้ (ไปดูวิธีตั้งค่าในคู่มือ)
+                    ⚠️ ยังไม่ได้ตั้งค่า LINE OA ระบบจะไม่สามารถส่งข้อความทวงหนี้ได้
                 </div>
             ` : ''}
             
@@ -42,49 +62,56 @@ async function renderDebts() {
             </div>
             
             <div class="item-list">
-                ${debts.length === 0 ? '<p class="text-center text-muted">ไม่มีหนี้ค้างชำระ เยี่ยมมาก! 🎉</p>' : ''}
+                ${groupedDebts.length === 0 ? '<p class="text-center text-muted">ไม่มีหนี้ค้างชำระ เยี่ยมมาก! 🎉</p>' : ''}
                 
-                ${debts.map(d => {
-                    const remaining = d.amount - d.paid_amount;
-                    return `
-                        <div class="card" style="margin-bottom: 0;">
-                            <div class="flex justify-between align-center mb-1">
-                                <div class="flex align-center gap-2">
-                                    ${d.picture_url 
-                                        ? `<img src="${d.picture_url}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">` 
-                                        : `<div class="item-emoji">👤</div>`}
-                                    <div>
-                                        <div class="item-title">${d.display_name}</div>
-                                        <div class="item-subtitle">
-                                            ${d.is_line_friend ? '<span style="color: #00B900;">🟢 ผูก LINE แล้ว</span>' : '⚪️ ยังไม่มี LINE'}
-                                        </div>
+                ${groupedDebts.map(c => `
+                    <div class="card" style="margin-bottom: 0;">
+                        <!-- ส่วนหัวของลูกค้า -->
+                        <div class="flex justify-between align-center mb-1">
+                            <div class="flex align-center gap-2">
+                                ${c.picture_url 
+                                    ? `<img src="${c.picture_url}" style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #E5E7EB;">` 
+                                    : `<div class="item-emoji" style="width: 45px; height: 45px; font-size: 1.5rem; display: flex; align-items: center; justify-content: center;">👤</div>`}
+                                <div>
+                                    <div class="item-title" style="font-size: 1.1rem;">${c.display_name}</div>
+                                    <div class="item-subtitle">
+                                        ${c.is_line_friend ? '<span style="color: #00B900;">🟢 ผูก LINE แล้ว</span>' : '⚪️ ยังไม่มี LINE'}
+                                        • ค้าง ${c.bills.length} บิล
                                     </div>
                                 </div>
-                                <div class="text-right">
-                                    <div class="flex justify-end align-center gap-1 mb-1">
-                                        <div class="item-price text-danger" style="font-size:1.1rem;">ค้าง ${formatCurrency(remaining)}</div>
-                                        <span onclick="deleteDebt(${d.id})" style="cursor: pointer; color: #888; font-size: 1.2rem; padding: 2px; margin-left: 5px; background: #ffeeee; border-radius: 4px;" title="ลบรายการผิด (และคืนสต๊อก)">🗑️</span>
-                                    </div>
-                                    <div class="item-subtitle">จากทั้งหมด ${formatCurrency(d.amount)}</div>
-                                </div>
                             </div>
-                            
-                            <div style="background: var(--bg-base); padding: 0.5rem; border-radius: 4px; font-size: 0.85rem; margin-bottom: 1rem;">
-                                <strong>รายการ:</strong> ${d.items_description || '-'}<br>
-                                <strong>ครบกำหนด:</strong> ${formatDate(d.due_date)}
-                            </div>
-                            
-                            <div class="flex gap-2">
-                                <button class="btn btn-outline" style="flex: 1;" onclick="showPayDebtModal(${d.id}, ${remaining})">รับเงินคืน</button>
-                                <button class="btn btn-primary" style="flex: 1; background: #00B900;" 
-                                    onclick="sendLineReminder(${d.id})" 
-                                    ${!d.is_line_friend || !lineStatus.configured ? 'disabled' : ''}>
-                                    💬 ทวงผ่าน LINE
-                                </button>
+                            <div class="text-right">
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">รวมยอดค้าง</div>
+                                <div class="text-danger" style="font-size: 1.3rem; font-weight: bold;">${formatCurrency(c.total_remaining)}</div>
                             </div>
                         </div>
-                    `;
-                }).join('')}
+                        
+                        <!-- รายการบิลของคนนี้ -->
+                        <div style="background: #F9FAFB; padding: 0.75rem; border-radius: 8px; margin: 10px 0;">
+                            ${c.bills.map((b, idx) => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: ${idx < c.bills.length - 1 ? '1px solid #E5E7EB' : 'none'};">
+                                    <div style="flex: 1;">
+                                        <div style="font-size: 0.85rem; font-weight: 600;">บิล ${idx+1}: ${b.items_description || 'ไม่มีรายละเอียด'}</div>
+                                        <div style="font-size: 0.75rem; color: #666;">ค้าง ${formatCurrency(b.remaining)} (จาก ${formatCurrency(b.amount)})</div>
+                                    </div>
+                                    <div style="display: flex; gap: 4px;">
+                                        <button class="btn btn-outline btn-sm" style="padding: 2px 8px; font-size: 0.75rem;" onclick="showPayDebtModal(${b.id}, ${b.remaining})">รับเงิน</button>
+                                        <button class="btn btn-outline btn-sm" style="padding: 2px 6px; font-size: 0.75rem; color: var(--danger); border-color: transparent;" onclick="deleteDebt(${b.id})" title="ลบบิลนี้">🗑️</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <!-- ปุ่มทวงหนี้รวม -->
+                        <div class="flex gap-2">
+                            <button class="btn btn-primary" style="flex: 1; background: #00B900; font-size: 0.95rem; font-weight: 600;" 
+                                onclick="sendCustomerReminder(${c.customer_id})" 
+                                ${!c.is_line_friend || !lineStatus.configured ? 'disabled' : ''}>
+                                💬 ทวงยอดรวมผ่าน LINE
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
             </div>
         `;
         
@@ -207,14 +234,14 @@ async function submitDebt(event) {
 }
 
 // ------------------------------------------------------------------
-// ทวงหนี้ผ่าน LINE
+// ทวงหนี้ยอดรวมผ่าน LINE
 // ------------------------------------------------------------------
-async function sendLineReminder(debtId) {
-    if (!confirm('ยืนยันส่งข้อความทวงหนี้ผ่าน LINE?')) return;
+async function sendCustomerReminder(customerId) {
+    if (!confirm('ยืนยันส่งข้อความสรุปยอดทวงหนี้ผ่าน LINE?')) return;
     
     try {
-        await API.Line.sendReminder(debtId);
-        showToast('ส่ง LINE ทวงหนี้เรียบร้อยแล้ว!');
+        await API.Line.sendCustomerReminder(customerId);
+        showToast('ส่ง LINE ทวงหนี้รวมเรียบร้อยแล้ว!');
     } catch (error) {
         // error msg จัดการโดย API helper แล้ว
     }
