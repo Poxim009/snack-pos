@@ -33,6 +33,16 @@ router.get('/status', (req, res) => {
 
 const webhookMiddleware = isLineConfigured ? line.middleware(lineConfig) : (req, res, next) => next();
 
+// Helper: แปลง path รูปภาพให้เป็น URL เต็มที่ LINE สามารถเข้าถึงได้
+function getPublicImageUrl(req, imageUrl) {
+    if (!imageUrl) return null;
+    if (imageUrl.startsWith('http')) return imageUrl; // Cloudinary URL — ใช้ได้เลย
+    // Local path เช่น /uploads/evidence/xxx.jpg -> สร้าง full URL
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.get('host');
+    return `${protocol}://${host}${imageUrl}`;
+}
+
 // --------------------------------------------------
 // POST /api/line/remind-customer/:customerId — ส่งข้อความทวงหนี้รวมทุกบิลของลูกค้า
 // --------------------------------------------------
@@ -67,7 +77,8 @@ router.post('/remind-customer/:customerId', async (req, res) => {
             billDetails.push(`บิล ${index+1}: ${d.items_description || '-'} (ค้าง ฿${remaining})`);
             if (d.evidence_image_url && imageUrls.length < 4) {
                 // เก็บภาพบิลไว้ส่ง (LINE ส่งรูปได้สูงสุด 5 อันต่อครั้งรวมข้อความ)
-                imageUrls.push(d.evidence_image_url);
+                const pubUrl = getPublicImageUrl(req, d.evidence_image_url);
+                if (pubUrl) imageUrls.push(pubUrl);
             }
         });
 
@@ -175,10 +186,11 @@ router.post('/remind/:debtId', async (req, res) => {
 
         const messagesToSend = [message];
         if (debt.evidence_image_url) {
-            messagesToSend.push({
+            const pubUrl = getPublicImageUrl(req, debt.evidence_image_url);
+            if (pubUrl) messagesToSend.push({
                 type: 'image',
-                originalContentUrl: debt.evidence_image_url,
-                previewImageUrl: debt.evidence_image_url
+                originalContentUrl: pubUrl,
+                previewImageUrl: pubUrl
             });
         }
 
@@ -432,12 +444,12 @@ router.post('/notify-new-debt', async (req, res) => {
 
         // ถ้ามีรูปหลักฐาน ให้ส่งไปด้วย
         if (debt.evidence_image_url) {
-            const imageUrl = debt.evidence_image_url;
-            if (imageUrl.startsWith('http')) {
+            const pubUrl = getPublicImageUrl(req, debt.evidence_image_url);
+            if (pubUrl) {
                 messagesToSend.push({
                     type: 'image',
-                    originalContentUrl: imageUrl,
-                    previewImageUrl: imageUrl
+                    originalContentUrl: pubUrl,
+                    previewImageUrl: pubUrl
                 });
             }
         }
