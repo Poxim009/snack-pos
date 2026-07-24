@@ -98,22 +98,6 @@ router.post('/remind-customer/:customerId', async (req, res) => {
                         { type: "text", text: `ยอดค้างทั้งหมด: ฿${totalRemaining}`, weight: "bold", size: "xl", color: "#EF4444", margin: "md" },
                         { type: "text", text: billDetails.join('\n'), size: "sm", color: "#666666", margin: "sm", wrap: true }
                     ]
-                },
-                footer: {
-                    type: "box",
-                    layout: "vertical",
-                    contents: [
-                        {
-                            type: "button",
-                            style: "primary",
-                            color: "#10B981",
-                            action: {
-                                type: "message",
-                                label: "โอนเงินแล้ว",
-                                text: "โอนเงินแล้วจ้า"
-                            }
-                        }
-                    ]
                 }
             }
         };
@@ -184,22 +168,6 @@ router.post('/remind/:debtId', async (req, res) => {
                         { type: "text", text: "คุณมียอดค้างชำระกับทางร้าน", margin: "sm" },
                         { type: "text", text: `ยอดค้าง: ฿${remaining}`, weight: "bold", size: "xl", color: "#EF4444", margin: "md" },
                         { type: "text", text: `รายละเอียด: ${debt.items_description || '-'}`, size: "sm", color: "#666666", margin: "sm", wrap: true }
-                    ]
-                },
-                footer: {
-                    type: "box",
-                    layout: "vertical",
-                    contents: [
-                        {
-                            type: "button",
-                            style: "primary",
-                            color: "#10B981",
-                            action: {
-                                type: "message",
-                                label: "โอนเงินแล้ว",
-                                text: "โอนเงินแล้วจ้า"
-                            }
-                        }
                     ]
                 }
             }
