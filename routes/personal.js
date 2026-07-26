@@ -120,6 +120,84 @@ router.get('/summary', async (req, res) => {
 });
 
 // --------------------------------------------------
+// GET /api/personal/calendar — ข้อมูลรายวันประจำเดือนสำหรับวาดปฏิทิน
+// --------------------------------------------------
+router.get('/calendar', async (req, res) => {
+    const { year, month } = req.query;
+    if (!year || !month) {
+        return res.status(400).json({ error: 'กรุณาระบุ year และ month' });
+    }
+    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+
+    try {
+        const result = await db.query(`
+            SELECT 
+                date,
+                COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as daily_income,
+                COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as daily_expense
+            FROM personal_transactions
+            WHERE date LIKE $1
+            GROUP BY date
+        `, [`${monthStr}%`]);
+
+        const calendarData = {};
+        result.rows.forEach(row => {
+            const income = parseFloat(row.daily_income) || 0;
+            const expense = parseFloat(row.daily_expense) || 0;
+            calendarData[row.date] = {
+                income,
+                expense,
+                balance: income - expense
+            };
+        });
+
+        res.json({ month: monthStr, days: calendarData });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
+// GET /api/personal/daily-details — ดึงรายละเอียดทั้งหมดของเฉพาะวันนั้น
+// --------------------------------------------------
+router.get('/daily-details', async (req, res) => {
+    const { date } = req.query;
+    if (!date) {
+        return res.status(400).json({ error: 'กรุณาระบุ date' });
+    }
+
+    try {
+        const itemsRes = await db.query(`
+            SELECT t.*, c.name as category_name, c.emoji as category_emoji
+            FROM personal_transactions t
+            LEFT JOIN personal_categories c ON t.category_id = c.id
+            WHERE t.date = $1
+            ORDER BY t.created_at ASC, t.id ASC
+        `, [date]);
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+
+        itemsRes.rows.forEach(t => {
+            if (t.type === 'income') totalIncome += parseFloat(t.amount);
+            if (t.type === 'expense') totalExpense += parseFloat(t.amount);
+        });
+
+        res.json({
+            date: date,
+            summary: {
+                total_income: totalIncome,
+                total_expense: totalExpense,
+                balance: totalIncome - totalExpense
+            },
+            items: itemsRes.rows
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
 // GET /api/personal/transactions — ดึงประวัติรายการ
 // --------------------------------------------------
 router.get('/transactions', async (req, res) => {

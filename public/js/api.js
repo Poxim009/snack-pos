@@ -95,6 +95,8 @@ const API = {
         addCategory: (data) => fetchAPI('/personal/categories', { method: 'POST', body: JSON.stringify(data) }),
         getSummary: (month = '', date = '') => fetchAPI(`/personal/summary?month=${month}&date=${date}`),
         getTransactions: (month = '', date = '') => fetchAPI(`/personal/transactions?month=${month}&date=${date}`),
+        getCalendar: (year, month) => fetchAPI(`/personal/calendar?year=${year}&month=${month}`),
+        getDailyDetails: (date) => fetchAPI(`/personal/daily-details?date=${date}`),
         createTransaction: (data) => fetchAPI('/personal/transactions', { method: 'POST', body: JSON.stringify(data) }),
         deleteTransaction: (id) => fetchAPI(`/personal/transactions/${id}`, { method: 'DELETE' })
     }
