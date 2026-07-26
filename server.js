@@ -51,6 +51,7 @@ app.use('/api/expenses', require('./routes/expenses'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/customers', require('./routes/customers'));
 app.use('/api/debts', require('./routes/debts'));
+app.use('/api/personal', require('./routes/personal'));
 app.use('/api/line', require('./routes/line'));
 app.use('/api/upload', require('./routes/upload'));
 

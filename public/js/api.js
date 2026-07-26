@@ -88,5 +88,14 @@ const API = {
         sendReminder: (debtId) => fetchAPI('/line/send-reminder', { method: 'POST', body: JSON.stringify({ debt_id: debtId }) }),
         sendCustomerReminder: (customerId) => fetchAPI(`/line/remind-customer/${customerId}`, { method: 'POST' }),
         notifyNewDebt: (debtId) => fetchAPI('/line/notify-new-debt', { method: 'POST', body: JSON.stringify({ debt_id: debtId }) })
+    },
+
+    Personal: {
+        getCategories: () => fetchAPI('/personal/categories'),
+        addCategory: (data) => fetchAPI('/personal/categories', { method: 'POST', body: JSON.stringify(data) }),
+        getSummary: (month = '', date = '') => fetchAPI(`/personal/summary?month=${month}&date=${date}`),
+        getTransactions: (month = '', date = '') => fetchAPI(`/personal/transactions?month=${month}&date=${date}`),
+        createTransaction: (data) => fetchAPI('/personal/transactions', { method: 'POST', body: JSON.stringify(data) }),
+        deleteTransaction: (id) => fetchAPI(`/personal/transactions/${id}`, { method: 'DELETE' })
     }
 };

@@ -50,6 +50,9 @@ function loadPageData(pageName) {
         case 'debts':
             renderDebts();
             break;
+        case 'personal':
+            renderPersonal();
+            break;
         case 'settings':
             renderSettings();
             break;

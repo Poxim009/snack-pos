@@ -127,3 +127,29 @@ CREATE TABLE IF NOT EXISTS daily_notes (
     note       TEXT    DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ============================================================
+-- 11. หมวดหมู่รายรับ-รายจ่ายส่วนตัว
+-- ============================================================
+CREATE TABLE IF NOT EXISTS personal_categories (
+    id         SERIAL PRIMARY KEY,
+    name       TEXT    NOT NULL,
+    type       TEXT    NOT NULL, -- 'income' หรือ 'expense'
+    emoji      TEXT    DEFAULT '👛',
+    sort_order INTEGER DEFAULT 0
+);
+
+-- ============================================================
+-- 12. บันทึกรายรับ-รายจ่ายส่วนตัว
+-- ============================================================
+CREATE TABLE IF NOT EXISTS personal_transactions (
+    id          SERIAL PRIMARY KEY,
+    category_id INTEGER REFERENCES personal_categories(id) ON DELETE SET NULL,
+    type        TEXT    NOT NULL, -- 'income' หรือ 'expense'
+    amount      REAL    NOT NULL,
+    description TEXT    DEFAULT '',
+    date        TEXT    NOT NULL,
+    note        TEXT    DEFAULT '',
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
