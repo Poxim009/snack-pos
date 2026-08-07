@@ -3,6 +3,7 @@
 // ============================================================
 
 let debtsCustomers = [];
+let allDebtsData = []; // เพิ่มตัวแปรเก็บหนี้ทั้งหมดเพื่อใช้ตอนเปิด Modal ชำระเงิน
 
 async function renderDebts() {
     const container = document.getElementById('debts-content');
@@ -17,6 +18,7 @@ async function renderDebts() {
         
         // โหลดรายชื่อลูกค้าเตรียมไว้สำหรับตอนเพิ่มหนี้
         debtsCustomers = await API.Customers.getAll();
+        allDebtsData = debts; // เก็บหนี้ทั้งหมดลง global
         
         // จัดกลุ่มหนี้ตามลูกค้า
         const customerDebts = {};
@@ -95,19 +97,22 @@ async function renderDebts() {
                                         <div style="font-size: 0.75rem; color: #666;">ค้าง ${formatCurrency(b.remaining)} (จาก ${formatCurrency(b.amount)})</div>
                                     </div>
                                     <div style="display: flex; gap: 4px;">
-                                        <button class="btn btn-outline btn-sm" style="padding: 2px 8px; font-size: 0.75rem;" onclick="showPayDebtModal(${b.id}, ${b.remaining})">รับเงิน</button>
                                         <button class="btn btn-outline btn-sm" style="padding: 2px 6px; font-size: 0.75rem; color: var(--danger); border-color: transparent;" onclick="deleteDebt(${b.id})" title="ลบบิลนี้">🗑️</button>
                                     </div>
                                 </div>
                             `).join('')}
                         </div>
                         
-                        <!-- ปุ่มทวงหนี้รวม -->
-                        <div class="flex gap-2">
+                        <!-- ปุ่มดำเนินการ (ชำระเงิน / ทวงหนี้) -->
+                        <div class="flex gap-2 mt-2">
+                            <button class="btn btn-outline" style="flex: 1; font-weight: 600;" 
+                                onclick="showCustomerPayModal(${c.customer_id})">
+                                💰 รับชำระเงิน
+                            </button>
                             <button class="btn btn-primary" style="flex: 1; background: #00B900; font-size: 0.95rem; font-weight: 600;" 
                                 onclick="sendCustomerReminder(${c.customer_id})" 
                                 ${!c.is_line_friend || !lineStatus.configured ? 'disabled' : ''}>
-                                💬 ทวงยอดรวมผ่าน LINE
+                                💬 ทวงผ่าน LINE
                             </button>
                         </div>
                     </div>
@@ -248,41 +253,133 @@ async function sendCustomerReminder(customerId) {
 }
 
 // ------------------------------------------------------------------
-// ชำระหนี้ (รับเงินคืน)
+// ชำระหนี้ (รับเงินคืน) รูปแบบใหม่ (เลือกลายบิล + สร้าง QR)
 // ------------------------------------------------------------------
-function showPayDebtModal(id, remainingAmount) {
+function showCustomerPayModal(customerId) {
+    const customerDebts = allDebtsData.filter(d => d.customer_id === customerId);
+    if (customerDebts.length === 0) return;
+    
+    const customerName = customerDebts[0].display_name;
+    let billsHtml = '';
+    let totalRemaining = 0;
+    
+    customerDebts.forEach((b, idx) => {
+        const remaining = b.amount - b.paid_amount;
+        totalRemaining += remaining;
+        billsHtml += `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border);">
+                <div style="display: flex; align-items: flex-start; gap: 10px;">
+                    <input type="checkbox" class="debt-bill-checkbox" data-id="${b.id}" data-amount="${remaining}" onchange="updateCustomerPayQR()" checked style="width: 22px; height: 22px; margin-top: 2px;">
+                    <div>
+                        <div style="font-size: 0.95rem; font-weight: 600;">บิล ${idx+1}: ${b.items_description || 'ไม่มีรายละเอียด'}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">คงเหลือ ฿${remaining}</div>
+                    </div>
+                </div>
+                <div style="font-weight: bold; color: var(--danger); font-size: 1.1rem;">฿${remaining}</div>
+            </div>
+        `;
+    });
+
     const html = `
-        ${getModalHeader('รับชำระเงินคืน')}
-        <form id="formPayDebt" onsubmit="submitPayDebt(event, ${id})">
+        ${getModalHeader('💰 รับชำระเงิน')}
+        <form id="formCustomerPay" onsubmit="submitCustomerPay(event, ${customerId})">
             <div style="text-align: center; margin-bottom: 1rem;">
-                <p class="text-muted">ยอดค้างชำระทั้งหมด</p>
-                <h2 class="text-danger">฿${remainingAmount}</h2>
+                <p class="text-muted">ลูกค้า: <strong>${customerName}</strong></p>
             </div>
-            <div class="form-group">
-                <label class="form-label">จำนวนเงินที่ได้รับ (บาท)</label>
-                <input type="number" name="pay_amount" class="form-control" required min="1" max="${remainingAmount}" value="${remainingAmount}">
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 5px;">* หากจ่ายไม่ครบให้ใส่ยอดที่ได้รับจริง</p>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding: 0 5px;">
+                <span style="font-weight: 600; font-size: 0.95rem;">เลือกบิลที่ต้องการจ่าย</span>
+                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.9rem; font-weight: bold;">
+                    <input type="checkbox" id="selectAllDebts" checked onchange="toggleAllDebts(this)" style="width: 18px; height: 18px;">
+                    เลือกทั้งหมด
+                </label>
             </div>
-            <button type="submit" class="btn btn-primary" style="margin-top: 1rem; background: var(--secondary);">✅ ยืนยันรับเงิน</button>
+            
+            <div style="background: #F9FAFB; padding: 10px; border-radius: 8px; max-height: 220px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid var(--border);">
+                ${billsHtml}
+            </div>
+            
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <div style="font-size: 1rem; color: var(--text-muted);">ยอดที่ต้องชำระ (ตามบิลที่เลือก)</div>
+                <h2 class="text-danger" id="customerPayTotal" style="font-size: 2.2rem; margin: 5px 0;">฿${totalRemaining}</h2>
+            </div>
+            
+            <div id="customerPayQRContainer" style="display: none; text-align: center; margin-bottom: 1rem;">
+                <img id="customerPayQRImg" src="" style="width: 200px; height: 200px; border-radius: 12px; border: 2px solid var(--primary); padding: 5px; background: white;">
+                <p class="text-muted mt-1 text-sm">ให้ลูกค้าสแกนเพื่อโอนเงินผ่าน PromptPay</p>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" id="btnCustomerPaySubmit" style="width: 100%; font-size: 1.1rem; padding: 12px; background: var(--secondary); border: none;">✅ ยืนยันว่าได้รับเงินแล้ว</button>
         </form>
     `;
+    
     openModal(html);
+    updateCustomerPayQR(); // เรียกครั้งแรกเพื่อให้โชว์ QR ทันที
 }
 
-async function submitPayDebt(event, debtId) {
+function toggleAllDebts(checkbox) {
+    const checkboxes = document.querySelectorAll('.debt-bill-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+    updateCustomerPayQR();
+}
+
+function updateCustomerPayQR() {
+    const checkboxes = document.querySelectorAll('.debt-bill-checkbox');
+    let total = 0;
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            total += parseFloat(cb.getAttribute('data-amount')) || 0;
+        }
+    });
+    
+    document.getElementById('customerPayTotal').textContent = '฿' + total;
+    
+    const qrContainer = document.getElementById('customerPayQRContainer');
+    const btnSubmit = document.getElementById('btnCustomerPaySubmit');
+    const promptpayId = localStorage.getItem('promptpay_id');
+    
+    if (total > 0) {
+        btnSubmit.disabled = false;
+        if (promptpayId) {
+            document.getElementById('customerPayQRImg').src = \`https://promptpay.io/\${promptpayId}/\${total}.png\`;
+            qrContainer.style.display = 'block';
+        } else {
+            qrContainer.style.display = 'none';
+        }
+    } else {
+        btnSubmit.disabled = true;
+        qrContainer.style.display = 'none';
+    }
+}
+
+async function submitCustomerPay(event, customerId) {
     event.preventDefault();
-    const btn = event.target.querySelector('button[type="submit"]');
-    const payAmount = parseFloat(event.target.pay_amount.value);
+    const btn = document.getElementById('btnCustomerPaySubmit');
+    const checkboxes = document.querySelectorAll('.debt-bill-checkbox:checked');
+    
+    if (checkboxes.length === 0) {
+        alert('กรุณาเลือกบิลอย่างน้อย 1 รายการ');
+        return;
+    }
     
     btn.disabled = true;
+    btn.textContent = 'กำลังบันทึก...';
     
     try {
-        const res = await API.Debts.pay(debtId, payAmount);
-        showToast(res.message);
+        const promises = Array.from(checkboxes).map(cb => {
+            const billId = cb.getAttribute('data-id');
+            const amount = parseFloat(cb.getAttribute('data-amount'));
+            return API.Debts.pay(billId, amount);
+        });
+        
+        await Promise.all(promises);
+        
+        showToast('รับชำระเงินเรียบร้อยแล้ว!');
         closeModal();
         renderDebts();
     } catch (error) {
         btn.disabled = false;
+        btn.textContent = '✅ ยืนยันว่าได้รับเงินแล้ว';
     }
 }
 
@@ -290,10 +387,10 @@ async function submitPayDebt(event, debtId) {
 // ลบรายการหนี้ที่ลงผิด
 // ------------------------------------------------------------------
 async function deleteDebt(debtId) {
-    if (!confirm('🗑️ คุณแน่ใจหรือไม่ว่าต้องการ "ลบรายการหนี้นี้"?\n(หากเป็นการลงผิด ระบบจะลบรายการทิ้ง และคืนสต๊อกสินค้าให้ตามเดิม)')) return;
+    if (!confirm('🗑️ คุณแน่ใจหรือไม่ว่าต้องการ "ลบรายการหนี้นี้"?\\n(หากเป็นการลงผิด ระบบจะลบรายการทิ้ง และคืนสต๊อกสินค้าให้ตามเดิม)')) return;
     
     try {
-        const res = await fetch(`/api/debts/${debtId}`, { method: 'DELETE' });
+        const res = await fetch(\`/api/debts/\${debtId}\`, { method: 'DELETE' });
         const data = await res.json();
         
         if (!res.ok) throw new Error(data.error || 'ลบข้อมูลล้มเหลว');
