@@ -2,6 +2,16 @@
 // pages/personal.js — หน้าบัญชีรายรับ-รายจ่ายส่วนตัว + ปฏิทินย้อนหลัง
 // ============================================================
 
+function renderIcon(iconName, color = 'black', size = 24) {
+    if (!iconName) return '';
+    // ถ้าเป็น emoji เดิมที่เคยมีใน DB จะมีอักขระพิเศษ
+    if (/[^\x00-\x7F]/.test(iconName)) {
+        return `<span style="font-size: ${size}px">${iconName}</span>`;
+    }
+    const filter = color === 'white' ? 'invert(1) brightness(2)' : 'opacity(0.8)';
+    return `<img src="/images/icons/${iconName}.svg" style="width: ${size}px; height: ${size}px; filter: ${filter}; object-fit: contain;">`;
+}
+
 let personalCategories = [];
 let allPersonalWallets = [];
 let selectedPersonalMonth = ''; // รูปแบบ YYYY-MM
@@ -54,7 +64,7 @@ async function renderPersonal(tab = currentPersonalTab) {
                             border-radius: 16px; padding: 16px 14px; color: white; flex-shrink: 0;
                             box-shadow: 0 4px 12px ${color}44; position: relative;
                         ">
-                            <div style="font-size: 1.6rem; margin-bottom: 4px;">${w.emoji}</div>
+                            <div style="margin-bottom: 8px;">${renderIcon(w.emoji, 'white', 32)}</div>
                             <div style="font-size: 0.8rem; opacity: 0.85; margin-bottom: 2px;">${w.name}</div>
                             <div style="font-size: 1.4rem; font-weight: bold;">${formatCurrency(bal)}</div>
                             ${wallets.length > 1 ? `<button onclick="deleteWallet(${w.id},'${w.name}')"
@@ -115,7 +125,7 @@ async function renderPersonal(tab = currentPersonalTab) {
                                 padding: 12px 8px; background: rgba(239, 68, 68, 0.05); border: 1.5px solid rgba(239, 68, 68, 0.2);
                                 border-radius: 12px; cursor: pointer; transition: all 0.2s ease; outline: none;
                             " onmouseover="this.style.transform='scale(1.04)'" onmouseout="this.style.transform='scale(1)'">
-                                <span style="font-size: 1.8rem; margin-bottom: 4px;">${c.emoji}</span>
+                                <span style="margin-bottom: 4px; display:flex;">${renderIcon(c.emoji, 'black', 28)}</span>
                                 <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-main); text-align: center; line-height: 1.2;">${c.name}</span>
                             </button>
                         `).join('')}
@@ -131,7 +141,7 @@ async function renderPersonal(tab = currentPersonalTab) {
                                 padding: 12px 8px; background: rgba(16, 185, 129, 0.05); border: 1.5px solid rgba(16, 185, 129, 0.2);
                                 border-radius: 12px; cursor: pointer; transition: all 0.2s ease; outline: none;
                             " onmouseover="this.style.transform='scale(1.04)'" onmouseout="this.style.transform='scale(1)'">
-                                <span style="font-size: 1.8rem; margin-bottom: 4px;">${c.emoji}</span>
+                                <span style="margin-bottom: 4px; display:flex;">${renderIcon(c.emoji, 'black', 28)}</span>
                                 <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-main); text-align: center; line-height: 1.2;">${c.name}</span>
                             </button>
                         `).join('')}
@@ -153,13 +163,13 @@ async function renderPersonal(tab = currentPersonalTab) {
                         return `
                             <div class="item-card" style="padding: 12px 14px;">
                                 <div class="item-info">
-                                    <div class="item-emoji" style="background: ${isIncome ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'}; font-size: 1.4rem; padding: 8px; border-radius: 10px;">
-                                        ${t.category_emoji || (isIncome ? '💰' : '💸')}
+                                    <div class="item-emoji" style="background: ${isIncome ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'}; padding: 8px; border-radius: 10px; display:flex; align-items:center; justify-content:center;">
+                                        ${renderIcon(t.category_emoji || (isIncome ? 'coins' : 'credit-card'), 'black', 24)}
                                     </div>
                                     <div>
                                         <div class="item-title" style="font-weight: 600;">${t.category_name || t.description || 'รายการส่วนตัว'}</div>
                                         <div class="item-subtitle">${formatDate(t.date)} ${t.description ? '• ' + t.description : ''}</div>
-                                        ${txWallet ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">${txWallet.emoji} ${txWallet.name}</div>` : ''}
+                                        ${txWallet ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px; display:flex; align-items:center; gap:4px;">${renderIcon(txWallet.emoji, 'black', 12)} ${txWallet.name}</div>` : ''}
                                     </div>
                                 </div>
                                 <div class="text-right flex align-center gap-2">
@@ -352,8 +362,8 @@ async function showPersonalDailyDetailsModal(dateStr) {
                     return `
                         <div class="item-card" style="padding: 10px 12px;">
                             <div class="item-info">
-                                <div class="item-emoji" style="background: ${isIncome ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'}; font-size: 1.3rem; padding: 6px; border-radius: 8px;">
-                                    ${t.category_emoji || (isIncome ? '💰' : '💸')}
+                                <div class="item-emoji" style="background: ${isIncome ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'}; padding: 6px; border-radius: 8px; display:flex; align-items:center; justify-content:center;">
+                                    ${renderIcon(t.category_emoji || (isIncome ? 'coins' : 'credit-card'), 'black', 20)}
                                 </div>
                                 <div>
                                     <div class="item-title" style="font-weight: 600; font-size: 0.9rem;">${t.category_name || 'รายการส่วนตัว'}</div>
@@ -398,9 +408,9 @@ async function deletePersonalTxInModal(id, dateStr) {
 // สร้างกระเป๋าใหม่
 // ------------------------------------------------------------------
 function showCreateWalletModal() {
-    const walletEmojis = ['👛','🏦','💳','💰','💴','🌟','🎯','🎥','🚗','🍔','🎛️','🍎','📚','🎮','💼'];
+    const walletIcons = ['wallet', 'banknote', 'landmark', 'credit-card', 'piggy-bank', 'briefcase', 'gift', 'star', 'home', 'heart', 'box', 'smartphone'];
     const walletColors = ['#6366F1','#10B981','#F59E0B','#EF4444','#8B5CF6','#06B6D4','#EC4899','#F97316'];
-    let selectedEmoji = '👛';
+    let selectedEmoji = 'wallet';
     let selectedColor = '#6366F1';
 
     const html = `
@@ -417,13 +427,14 @@ function showCreateWalletModal() {
             </div>
 
             <div class="form-group">
-                <label class="form-label">อิโมจิกระเป๋า</label>
+                <label class="form-label">ไอคอนกระเป๋า</label>
                 <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                    ${walletEmojis.map(em => `
+                    ${walletIcons.map(em => `
                         <button type="button" id="emoji-btn-${em}" onclick="selectWalletEmoji('${em}')" style="
-                            width: 40px; height: 40px; font-size: 1.4rem; border-radius: 8px; border: 2px solid ${em === selectedEmoji ? 'var(--primary)' : '#E5E7EB'};
+                            width: 44px; height: 44px; border-radius: 8px; border: 2px solid ${em === selectedEmoji ? 'var(--primary)' : '#E5E7EB'};
                             background: ${em === selectedEmoji ? 'var(--primary-light, #EEF2FF)' : 'white'}; cursor: pointer;
-                        ">${em}</button>
+                            display:flex; align-items:center; justify-content:center;
+                        ">${renderIcon(em, 'black', 24)}</button>
                     `).join('')}
                 </div>
                 <input type="hidden" name="emoji" id="wallet-emoji-input" value="${selectedEmoji}">
@@ -505,7 +516,7 @@ function openQuickAddPersonalModal(catId) {
     const isIncome = cat.type === 'income';
 
     const html = `
-        ${getModalHeader(`${cat.emoji} ${cat.name}`)}
+        ${getModalHeader(`<div style="display:flex; align-items:center; gap:8px;">${renderIcon(cat.emoji, 'black', 28)} ${cat.name}</div>`)}
         <form id="formQuickPersonal" onsubmit="submitPersonalTx(event)">
             <input type="hidden" name="category_id" value="${cat.id}">
             <input type="hidden" name="type" value="${cat.type}">
@@ -530,6 +541,28 @@ function openQuickAddPersonalModal(catId) {
                 <input type="date" name="date" class="form-control" value="${getTodayString()}" required>
             </div>
 
+            ${allPersonalWallets.length > 0 ? `
+            <div class="form-group">
+                <label class="form-label" style="font-size: 0.9rem; color: var(--text-muted);">เลือกกระเป๋าเงิน</label>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${allPersonalWallets.map((w, idx) => `
+                        <label style="display:flex; align-items:center; gap:8px; padding:10px 12px;
+                            border: 2px solid ${idx === 0 ? (w.color || '#6366F1') : '#E5E7EB'};
+                            border-radius: 10px; cursor:pointer; background: ${idx === 0 ? (w.color || '#6366F1') + '18' : '#fff'};
+                            transition: all 0.15s;" id="wallet-label-${w.id}"
+                        >
+                            <input type="radio" name="wallet_id" value="${w.id}" ${idx === 0 ? 'checked' : ''}
+                                onchange="highlightWalletRadio(${w.id}, '${w.color || '#6366F1'}')"
+                                style="accent-color:${w.color || '#6366F1'}; width: 18px; height: 18px;">
+                            <span style="display:flex; align-items:center; gap:6px; font-weight: 500;">
+                                ${renderIcon(w.emoji, 'black', 20)} ${w.name}
+                            </span>
+                        </label>
+                    `).join('')}
+                </div>
+            </div>
+            ` : `<input type="hidden" name="wallet_id" value="">`}
+
             <button type="submit" class="btn" style="
                 width: 100%; padding: 12px; font-size: 1.1rem; font-weight: bold; margin-top: 1rem;
                 background: ${isIncome ? '#10B981' : '#EF4444'}; color: white; border: none; border-radius: 8px;
@@ -544,6 +577,21 @@ function openQuickAddPersonalModal(catId) {
         const input = document.getElementById('personal-amount-input');
         if (input) input.focus();
     }, 100);
+}
+
+function highlightWalletRadio(selectedId, color) {
+    allPersonalWallets.forEach(w => {
+        const label = document.getElementById(`wallet-label-${w.id}`);
+        if (label) {
+            if (w.id === selectedId) {
+                label.style.border = `2px solid ${color}`;
+                label.style.background = `${color}18`;
+            } else {
+                label.style.border = `2px solid #E5E7EB`;
+                label.style.background = `#fff`;
+            }
+        }
+    });
 }
 
 async function submitPersonalTx(event) {

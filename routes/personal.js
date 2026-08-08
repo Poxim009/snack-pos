@@ -48,14 +48,14 @@ async function initPersonalTables() {
         if (parseInt(catCheck.rows[0].count) === 0) {
             await db.query(`
                 INSERT INTO personal_categories (name, type, emoji, sort_order) VALUES
-                ('ค่าอาหาร / เครื่องดื่ม', 'expense', '🍔', 1),
-                ('ค่าเดินทาง / ค่ารถ', 'expense', '🚗', 2),
-                ('เครื่องเขียน / เรียน', 'expense', '📚', 3),
-                ('ความบันเทิง / ช้อปปิ้ง', 'expense', '🎮', 4),
-                ('ของใช้ส่วนตัว / จิปาถะ', 'expense', '🛍️', 5),
-                ('เงินค่าขนม / ผู้ปกครอง', 'income', '💰', 6),
-                ('รับจ้าง / งานเสริม', 'income', '💼', 7),
-                ('รายรับอื่นๆ', 'income', '🎁', 8);
+                ('ค่าอาหาร / เครื่องดื่ม', 'expense', 'utensils', 1),
+                ('ค่าเดินทาง / ค่ารถ', 'expense', 'car', 2),
+                ('เครื่องเขียน / เรียน', 'expense', 'book', 3),
+                ('ความบันเทิง / ช้อปปิ้ง', 'expense', 'gamepad-2', 4),
+                ('ของใช้ส่วนตัว / จิปาถะ', 'expense', 'shopping-bag', 5),
+                ('เงินค่าขนม / ผู้ปกครอง', 'income', 'coins', 6),
+                ('รับจ้าง / งานเสริม', 'income', 'briefcase', 7),
+                ('รายรับอื่นๆ', 'income', 'gift', 8);
             `);
         }
 
@@ -64,7 +64,7 @@ async function initPersonalTables() {
         if (parseInt(walletCheck.rows[0].count) === 0) {
             const defaultWallet = await db.query(`
                 INSERT INTO personal_wallets (name, emoji, initial_balance, color)
-                VALUES ('บัญชีหลัก', '🏦', 0, '#6366F1') RETURNING id
+                VALUES ('บัญชีหลัก', 'wallet', 0, '#6366F1') RETURNING id
             `);
             // ย้ายรายการเก่าทั้งหมดเข้าบัญชีหลัก
             await db.query('UPDATE personal_transactions SET wallet_id = $1 WHERE wallet_id IS NULL', [defaultWallet.rows[0].id]);
@@ -109,7 +109,7 @@ router.post('/wallets', async (req, res) => {
     try {
         const result = await db.query(
             'INSERT INTO personal_wallets (name, emoji, initial_balance, color) VALUES ($1, $2, $3, $4) RETURNING *',
-            [name, emoji || '👛', parseFloat(initial_balance) || 0, color || '#6366F1']
+            [name, emoji || 'wallet', parseFloat(initial_balance) || 0, color || '#6366F1']
         );
         res.json(result.rows[0]);
     } catch (err) {
