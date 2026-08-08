@@ -3,6 +3,7 @@
 // ============================================================
 
 let personalCategories = [];
+let allPersonalWallets = [];
 let selectedPersonalMonth = ''; // รูปแบบ YYYY-MM
 let currentPersonalTab = 'entry'; // 'entry' หรือ 'calendar'
 let personalCalendarYear = new Date().getFullYear();
@@ -22,22 +23,56 @@ async function renderPersonal(tab = currentPersonalTab) {
     }
 
     try {
-        const [categories, summary, transactions] = await Promise.all([
+        const [categories, summary, transactions, wallets] = await Promise.all([
             API.Personal.getCategories(),
             API.Personal.getSummary(selectedPersonalMonth),
-            API.Personal.getTransactions(selectedPersonalMonth)
+            API.Personal.getTransactions(selectedPersonalMonth),
+            API.Personal.getWallets()
         ]);
 
         personalCategories = categories;
+        allPersonalWallets = wallets;
 
         const expenseCats = categories.filter(c => c.type === 'expense');
         const incomeCats = categories.filter(c => c.type === 'income');
+
+        // --- ส่วนกระเป๋าเงิน ---
+        const walletColors = ['#6366F1','#10B981','#F59E0B','#EF4444','#8B5CF6','#06B6D4','#EC4899'];
+        const walletCardsHtml = `
+            <div style="margin-bottom: 1.2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+                    <h3 style="font-size: 1rem; margin: 0;">👛 กระเป๋าเงินของฉัน</h3>
+                    <button class="btn btn-outline btn-sm" onclick="showCreateWalletModal()" style="font-size: 0.8rem;">+ สร้างกระเป๋าใหม่</button>
+                </div>
+                <div style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin;">
+                    ${wallets.map((w, idx) => {
+                        const bal = parseFloat(w.balance) || 0;
+                        const color = w.color || walletColors[idx % walletColors.length];
+                        return `
+                        <div style="
+                            min-width: 160px; background: linear-gradient(135deg, ${color}, ${color}cc);
+                            border-radius: 16px; padding: 16px 14px; color: white; flex-shrink: 0;
+                            box-shadow: 0 4px 12px ${color}44; position: relative;
+                        ">
+                            <div style="font-size: 1.6rem; margin-bottom: 4px;">${w.emoji}</div>
+                            <div style="font-size: 0.8rem; opacity: 0.85; margin-bottom: 2px;">${w.name}</div>
+                            <div style="font-size: 1.4rem; font-weight: bold;">${formatCurrency(bal)}</div>
+                            ${wallets.length > 1 ? `<button onclick="deleteWallet(${w.id},'${w.name}')"
+                                style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.2); border:none; border-radius:50%; width:22px; height:22px; cursor:pointer; font-size:0.7rem; color:white; display:flex; align-items:center; justify-content:center;"
+                            >✕</button>` : ''}
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>
+        `;
 
         let html = `
             <div class="flex justify-between align-center mb-2">
                 <h2>👛 บัญชีส่วนตัว</h2>
                 <input type="month" id="personal-month-picker" class="form-control" style="width: auto; padding: 4px 8px;" value="${selectedPersonalMonth}" onchange="changePersonalMonth(this.value)">
             </div>
+
+            ${walletCardsHtml}
 
             <!-- Tab switcher: บันทึกด่วน / ปฏิทินย้อนหลัง -->
             <div style="display:flex; gap:0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid #E5E7EB; margin-bottom: 1rem;">
@@ -52,16 +87,16 @@ async function renderPersonal(tab = currentPersonalTab) {
             <!-- สรุปยอดเงินส่วนตัวประจำเดือน -->
             <div class="summary-grid mb-3">
                 <div class="summary-box" style="background: rgba(16, 185, 129, 0.1); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.2);">
-                    <span class="summary-label" style="color: #047857;">รายรับส่วนตัว</span>
+                    <span class="summary-label" style="color: #047857;">รายรับเดือนนี้</span>
                     <div class="summary-value">+${formatCurrency(summary.total_income)}</div>
                 </div>
                 <div class="summary-box" style="background: rgba(239, 68, 68, 0.1); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.2);">
-                    <span class="summary-label" style="color: #B91C1C;">รายจ่ายส่วนตัว</span>
+                    <span class="summary-label" style="color: #B91C1C;">รายจ่ายเดือนนี้</span>
                     <div class="summary-value">-${formatCurrency(summary.total_expense)}</div>
                 </div>
                 <div class="summary-box" style="background: linear-gradient(135deg, #6366F1, #8B5CF6); color: white; border: none; grid-column: span 2;">
-                    <span class="summary-label" style="color: rgba(255,255,255,0.85);">เงินคงเหลือส่วนตัว</span>
-                    <div class="summary-value" style="font-size: 1.8rem;">${formatCurrency(summary.balance)}</div>
+                    <span class="summary-label" style="color: rgba(255,255,255,0.85);">เงินคงเหลือทุกกระเป๋า (เปิดดู)</span>
+                    <div class="summary-value" style="font-size: 1.8rem;">${formatCurrency(wallets.reduce((s,w) => s + parseFloat(w.balance||0), 0))}</div>
                 </div>
             </div>
         `;
@@ -113,6 +148,8 @@ async function renderPersonal(tab = currentPersonalTab) {
                     ${transactions.length === 0 ? '<p class="text-center text-muted py-3">ยังไม่มีรายการส่วนตัวในเดือนนี้</p>' : ''}
                     ${transactions.map(t => {
                         const isIncome = t.type === 'income';
+                        // หากระเป๋าของรายการนี้
+                        const txWallet = allPersonalWallets.find(w => w.id === t.wallet_id);
                         return `
                             <div class="item-card" style="padding: 12px 14px;">
                                 <div class="item-info">
@@ -122,6 +159,7 @@ async function renderPersonal(tab = currentPersonalTab) {
                                     <div>
                                         <div class="item-title" style="font-weight: 600;">${t.category_name || t.description || 'รายการส่วนตัว'}</div>
                                         <div class="item-subtitle">${formatDate(t.date)} ${t.description ? '• ' + t.description : ''}</div>
+                                        ${txWallet ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">${txWallet.emoji} ${txWallet.name}</div>` : ''}
                                     </div>
                                 </div>
                                 <div class="text-right flex align-center gap-2">
@@ -356,6 +394,110 @@ async function deletePersonalTxInModal(id, dateStr) {
     }
 }
 
+// ------------------------------------------------------------------
+// สร้างกระเป๋าใหม่
+// ------------------------------------------------------------------
+function showCreateWalletModal() {
+    const walletEmojis = ['👛','🏦','💳','💰','💴','🌟','🎯','🎥','🚗','🍔','🎛️','🍎','📚','🎮','💼'];
+    const walletColors = ['#6366F1','#10B981','#F59E0B','#EF4444','#8B5CF6','#06B6D4','#EC4899','#F97316'];
+    let selectedEmoji = '👛';
+    let selectedColor = '#6366F1';
+
+    const html = `
+        ${getModalHeader('➕ สร้างกระเป๋าเงินใหม่')}
+        <form id="formCreateWallet" onsubmit="submitCreateWallet(event)">
+            <div class="form-group">
+                <label class="form-label">ชื่อกระเป๋า</label>
+                <input type="text" name="name" class="form-control" placeholder="เช่น ไปคอนเสิร์ต, เงินเพื่อน" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">ยอดเงินตั้งต้น (บาท)</label>
+                <input type="number" name="initial_balance" class="form-control" placeholder="0" min="0" step="1" value="0">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">อิโมจิกระเป๋า</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${walletEmojis.map(em => `
+                        <button type="button" id="emoji-btn-${em}" onclick="selectWalletEmoji('${em}')" style="
+                            width: 40px; height: 40px; font-size: 1.4rem; border-radius: 8px; border: 2px solid ${em === selectedEmoji ? 'var(--primary)' : '#E5E7EB'};
+                            background: ${em === selectedEmoji ? 'var(--primary-light, #EEF2FF)' : 'white'}; cursor: pointer;
+                        ">${em}</button>
+                    `).join('')}
+                </div>
+                <input type="hidden" name="emoji" id="wallet-emoji-input" value="${selectedEmoji}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">สีกระเป๋า</label>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    ${walletColors.map(c => `
+                        <button type="button" id="color-btn-${c.replace('#','')}"
+                            onclick="selectWalletColor('${c}')"
+                            style="width: 32px; height: 32px; border-radius: 50%; background: ${c}; border: 3px solid ${c === selectedColor ? '#1e293b' : 'transparent'}; cursor: pointer;"
+                        ></button>
+                    `).join('')}
+                </div>
+                <input type="hidden" name="color" id="wallet-color-input" value="${selectedColor}">
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:1rem;">✅ สร้างกระเป๋า</button>
+        </form>
+    `;
+    openModal(html);
+}
+
+function selectWalletEmoji(emoji) {
+    document.getElementById('wallet-emoji-input').value = emoji;
+    document.querySelectorAll('[id^="emoji-btn-"]').forEach(b => {
+        b.style.border = '2px solid #E5E7EB';
+        b.style.background = 'white';
+    });
+    const btn = document.getElementById(`emoji-btn-${emoji}`);
+    if (btn) { btn.style.border = '2px solid var(--primary)'; btn.style.background = '#EEF2FF'; }
+}
+
+function selectWalletColor(color) {
+    document.getElementById('wallet-color-input').value = color;
+    document.querySelectorAll('[id^="color-btn-"]').forEach(b => b.style.border = '3px solid transparent');
+    const safeId = color.replace('#','');
+    const btn = document.getElementById(`color-btn-${safeId}`);
+    if (btn) btn.style.border = '3px solid #1e293b';
+}
+
+async function submitCreateWallet(event) {
+    event.preventDefault();
+    const form = event.target;
+    const btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'กำลังสร้าง...';
+    try {
+        await API.Personal.createWallet({
+            name: form.name.value,
+            emoji: form.emoji.value,
+            initial_balance: parseFloat(form.initial_balance.value) || 0,
+            color: form.color.value
+        });
+        showToast('สร้างกระเป๋าเรียบร้อย!');
+        closeModal();
+        renderPersonal(currentPersonalTab);
+    } catch (e) {
+        btn.disabled = false;
+        btn.textContent = '✅ สร้างกระเป๋า';
+    }
+}
+
+async function deleteWallet(id, name) {
+    if (!confirm(`ลบกระเป๋า "${name}" ?
+รายการที่อยู่ในกระเป๋านี้จะถูกบันทึกไว้แต่ไม่มีกระเป๋า`)) return;
+    try {
+        await API.Personal.deleteWallet(id);
+        showToast('ลบกระเป๋าเรียบร้อย');
+        renderPersonal(currentPersonalTab);
+    } catch (e) { /* handled */ }
+}
+
 function openQuickAddPersonalModal(catId) {
     const cat = personalCategories.find(c => c.id === catId);
     if (!cat) return;
@@ -409,7 +551,12 @@ async function submitPersonalTx(event) {
     const form = event.target;
     const btn = form.querySelector('button[type="submit"]');
 
+    // ดึง wallet_id จาก radio หรือ hidden input
+    const walletRadio = form.querySelector('input[name="wallet_id"]:checked') || form.querySelector('input[name="wallet_id"]');
+    const walletId = walletRadio ? parseInt(walletRadio.value) || null : null;
+
     const data = {
+        wallet_id: walletId,
         category_id: parseInt(form.category_id.value),
         type: form.type.value,
         amount: parseFloat(form.amount.value),

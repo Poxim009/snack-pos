@@ -4,20 +4,23 @@
 
 let debtsCustomers = [];
 let allDebtsData = []; // เพิ่มตัวแปรเก็บหนี้ทั้งหมดเพื่อใช้ตอนเปิด Modal ชำระเงิน
+let currentDebtTypeFilter = 'all'; // 'all', 'snack', 'personal'
 
-async function renderDebts() {
+async function renderDebts(debtTypeFilter = currentDebtTypeFilter) {
+    currentDebtTypeFilter = debtTypeFilter;
     const container = document.getElementById('debts-content');
     container.innerHTML = '<div class="loading">กำลังโหลด...</div>';
 
     try {
         const [summary, debts, lineStatus] = await Promise.all([
             API.Debts.getSummary(),
-            API.Debts.getAll('pending'), // โหลดเฉพาะที่ยังค้างจ่าย
+            API.Debts.getAll('pending', debtTypeFilter), // โหลดเฉพาะที่ยังค้างจ่าย
             API.Line.getStatus()
         ]);
         
         // โหลดรายชื่อลูกค้าเตรียมไว้สำหรับตอนเพิ่มหนี้
         debtsCustomers = await API.Customers.getAll();
+
         allDebtsData = debts; // เก็บหนี้ทั้งหมดลง global
         
         // จัดกลุ่มหนี้ตามลูกค้า
@@ -56,6 +59,19 @@ async function renderDebts() {
                     <span class="summary-label">จำนวนลูกหนี้ค้าง</span>
                     <div class="summary-value">${summary.pending_count} คน</div>
                 </div>
+            </div>
+
+            <!-- แท็บกรองประเภทหนี้ -->
+            <div style="display:flex; gap:0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid #E5E7EB; margin: 1rem 0;">
+                <button onclick="renderDebts('all')" style="flex:1; padding: 0.55rem; background:${'all' === debtTypeFilter ? '#fff' : '#F9FAFB'}; border:none; font-weight:600; cursor:pointer; color:${'all' === debtTypeFilter ? 'var(--primary)' : 'var(--text-muted)'}; border-bottom: 3px solid ${'all' === debtTypeFilter ? 'var(--primary)' : 'transparent'}; font-size:0.85rem;">
+                    💳 ทั้งหมด
+                </button>
+                <button onclick="renderDebts('snack')" style="flex:1; padding: 0.55rem; background:${'snack' === debtTypeFilter ? '#fff' : '#F9FAFB'}; border:none; font-weight:600; cursor:pointer; color:${'snack' === debtTypeFilter ? '#F59E0B' : 'var(--text-muted)'}; border-bottom: 3px solid ${'snack' === debtTypeFilter ? '#F59E0B' : 'transparent'}; font-size:0.85rem;">
+                    🍪 หนี้ขนม
+                </button>
+                <button onclick="renderDebts('personal')" style="flex:1; padding: 0.55rem; background:${'personal' === debtTypeFilter ? '#fff' : '#F9FAFB'}; border:none; font-weight:600; cursor:pointer; color:${'personal' === debtTypeFilter ? '#8B5CF6' : 'var(--text-muted)'}; border-bottom: 3px solid ${'personal' === debtTypeFilter ? '#8B5CF6' : 'transparent'}; font-size:0.85rem;">
+                    👥 หนี้ส่วนตัว
+                </button>
             </div>
             
             <div class="flex justify-between align-center mb-2 mt-2">
@@ -151,6 +167,14 @@ function showAddDebtModal() {
                 </div>
             </div>
             <div class="form-group">
+                <label class="form-label">ประเภทหนี้</label>
+                <select name="debt_type" class="form-control">
+                    <option value="snack">🍪 หนี้ขนม / สินค้าที่ขาย</option>
+                    <option value="personal">👥 หนี้ส่วนตัว (ยืมเงิน / หารค่าใช้จ่าย)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
                 <label class="form-label">ยอดเงินที่ค้าง (บาท)</label>
                 <input type="number" name="amount" class="form-control" required min="1">
             </div>
@@ -215,7 +239,8 @@ async function submitDebt(event) {
         remind_time: form.remind_time.value,
         remind_frequency: parseInt(form.remind_frequency.value),
         auto_remind: form.remind_frequency.value !== "0" ? 1 : 0,
-        evidence_image_url: form.evidence_image_url?.value || ''
+        evidence_image_url: form.evidence_image_url?.value || '',
+        debt_type: form.debt_type.value
     };
     
     btn.disabled = true;

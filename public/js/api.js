@@ -71,7 +71,7 @@ const API = {
     },
     
     Debts: {
-        getAll: (status = '') => fetchAPI(status ? `/debts?status=${status}` : '/debts'),
+        getAll: (status = '', debt_type = '') => fetchAPI(`/debts?status=${status}&debt_type=${debt_type}`),
         getSummary: () => fetchAPI('/debts/summary'),
         create: (data) => fetchAPI('/debts', { method: 'POST', body: JSON.stringify(data) }),
         pay: (id, amount) => fetchAPI(`/debts/${id}/pay`, { method: 'PUT', body: JSON.stringify({ pay_amount: amount }) }),
@@ -98,6 +98,9 @@ const API = {
         getCalendar: (year, month) => fetchAPI(`/personal/calendar?year=${year}&month=${month}`),
         getDailyDetails: (date) => fetchAPI(`/personal/daily-details?date=${date}`),
         createTransaction: (data) => fetchAPI('/personal/transactions', { method: 'POST', body: JSON.stringify(data) }),
-        deleteTransaction: (id) => fetchAPI(`/personal/transactions/${id}`, { method: 'DELETE' })
+        deleteTransaction: (id) => fetchAPI(`/personal/transactions/${id}`, { method: 'DELETE' }),
+        getWallets: () => fetchAPI('/personal/wallets'),
+        createWallet: (data) => fetchAPI('/personal/wallets', { method: 'POST', body: JSON.stringify(data) }),
+        deleteWallet: (id) => fetchAPI(`/personal/wallets/${id}`, { method: 'DELETE' })
     }
 };

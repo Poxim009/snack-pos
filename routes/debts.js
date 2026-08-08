@@ -2,6 +2,13 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 
+// เพิ่มคอลัมน์ debt_type ถ้ายังไม่มี (สำหรับฐานข้อมูลเก่า)
+(async () => {
+    try {
+        await db.query(`ALTER TABLE debts ADD COLUMN IF NOT EXISTS debt_type TEXT DEFAULT 'snack'`);
+    } catch(e) { /* ไม่สนใจถ้ามีอยู่แล้ว */ }
+})();
+
 // --------------------------------------------------
 // GET /api/debts/summary — สรุปหนี้
 // --------------------------------------------------
@@ -24,7 +31,7 @@ router.get('/summary', async (req, res) => {
 // GET /api/debts — ดึงรายการหนี้
 // --------------------------------------------------
 router.get('/', async (req, res) => {
-    const { status } = req.query;
+    const { status, debt_type } = req.query;
     
     let queryStr = `
         SELECT d.*, c.display_name, c.is_line_friend, c.picture_url
@@ -32,11 +39,20 @@ router.get('/', async (req, res) => {
         JOIN customers c ON d.customer_id = c.id
     `;
     let params = [];
+    let conditions = [];
 
     if (status === 'pending') {
-        queryStr += ` WHERE d.status IN ('pending', 'partial')`;
+        conditions.push(`d.status IN ('pending', 'partial')`);
     } else if (status === 'paid') {
-        queryStr += ` WHERE d.status = 'paid'`;
+        conditions.push(`d.status = 'paid'`);
+    }
+
+    if (debt_type && debt_type !== 'all') {
+        conditions.push(`d.debt_type = '${debt_type}'`);
+    }
+
+    if (conditions.length > 0) {
+        queryStr += ' WHERE ' + conditions.join(' AND ');
     }
     
     queryStr += ` ORDER BY d.due_date ASC, d.id DESC`;
@@ -53,7 +69,7 @@ router.get('/', async (req, res) => {
 // POST /api/debts — ลงบัญชีลูกหนี้ใหม่
 // --------------------------------------------------
 router.post('/', async (req, res) => {
-    const { customer_id, amount, items_description, due_date, auto_remind, remind_frequency, remind_time, evidence_image_url } = req.body;
+    const { customer_id, amount, items_description, due_date, auto_remind, remind_frequency, remind_time, evidence_image_url, debt_type } = req.body;
 
     if (!customer_id || !amount) {
         return res.status(400).json({ error: 'ข้อมูลไม่ครบถ้วน' });
@@ -61,8 +77,8 @@ router.post('/', async (req, res) => {
 
     try {
         const result = await db.query(`
-            INSERT INTO debts (customer_id, amount, items_description, due_date, auto_remind, remind_frequency, remind_time, evidence_image_url)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO debts (customer_id, amount, items_description, due_date, auto_remind, remind_frequency, remind_time, evidence_image_url, debt_type)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING id
         `, [
             customer_id, 
@@ -72,7 +88,8 @@ router.post('/', async (req, res) => {
             auto_remind !== undefined ? auto_remind : 1,
             remind_frequency !== undefined ? remind_frequency : 1,
             remind_time || '10:00',
-            evidence_image_url || ''
+            evidence_image_url || '',
+            debt_type || 'snack'
         ]);
         
         res.json({ success: true, id: result.rows[0].id });

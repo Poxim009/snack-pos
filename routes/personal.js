@@ -16,8 +16,18 @@ async function initPersonalTables() {
                 sort_order INTEGER DEFAULT 0
             );
 
+            CREATE TABLE IF NOT EXISTS personal_wallets (
+                id            SERIAL PRIMARY KEY,
+                name          TEXT    NOT NULL,
+                emoji         TEXT    DEFAULT '👛',
+                initial_balance REAL  NOT NULL DEFAULT 0,
+                color         TEXT    DEFAULT '#6366F1',
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS personal_transactions (
                 id          SERIAL PRIMARY KEY,
+                wallet_id   INTEGER REFERENCES personal_wallets(id) ON DELETE SET NULL,
                 category_id INTEGER REFERENCES personal_categories(id) ON DELETE SET NULL,
                 type        TEXT    NOT NULL,
                 amount      REAL    NOT NULL,
@@ -27,6 +37,11 @@ async function initPersonalTables() {
                 created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+
+        // เพิ่มคอลัมน์ wallet_id ถ้ายังไม่มี (สำหรับฐานข้อมูลเก่า)
+        try {
+            await db.query(`ALTER TABLE personal_transactions ADD COLUMN IF NOT EXISTS wallet_id INTEGER REFERENCES personal_wallets(id) ON DELETE SET NULL`);
+        } catch(e) { /* ไม่สนใจถ้ามีอยู่แล้ว */ }
 
         // เช็คว่ามีหมวดหมู่อยู่แล้วหรือไม่ ถ้ายังไม่มีให้สร้างเริ่มต้น
         const catCheck = await db.query('SELECT COUNT(*) FROM personal_categories');
@@ -43,6 +58,17 @@ async function initPersonalTables() {
                 ('รายรับอื่นๆ', 'income', '🎁', 8);
             `);
         }
+
+        // สร้าง "บัญชีหลัก" ถ้ายังไม่มีกระเป๋าเลย
+        const walletCheck = await db.query('SELECT COUNT(*) FROM personal_wallets');
+        if (parseInt(walletCheck.rows[0].count) === 0) {
+            const defaultWallet = await db.query(`
+                INSERT INTO personal_wallets (name, emoji, initial_balance, color)
+                VALUES ('บัญชีหลัก', '🏦', 0, '#6366F1') RETURNING id
+            `);
+            // ย้ายรายการเก่าทั้งหมดเข้าบัญชีหลัก
+            await db.query('UPDATE personal_transactions SET wallet_id = $1 WHERE wallet_id IS NULL', [defaultWallet.rows[0].id]);
+        }
     } catch (err) {
         console.error('Error initializing personal tables:', err);
     }
@@ -50,6 +76,62 @@ async function initPersonalTables() {
 
 // เรียกให้สร้างตารางทันทีที่เก็ทเข้าโมดูล
 initPersonalTables();
+
+// --------------------------------------------------
+// GET /api/personal/wallets — ดึงกระเป๋าเงินทั้งหมด พร้อมยอดคงเหลือ
+// --------------------------------------------------
+router.get('/wallets', async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT 
+                w.*,
+                COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as total_income,
+                COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as total_expense,
+                w.initial_balance + COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0)
+                    - COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as balance
+            FROM personal_wallets w
+            LEFT JOIN personal_transactions t ON t.wallet_id = w.id
+            GROUP BY w.id
+            ORDER BY w.id ASC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
+// POST /api/personal/wallets — สร้างกระเป๋าใหม่
+// --------------------------------------------------
+router.post('/wallets', async (req, res) => {
+    const { name, emoji, initial_balance, color } = req.body;
+    if (!name) return res.status(400).json({ error: 'กรุณาระบุชื่อกระเป๋า' });
+    try {
+        const result = await db.query(
+            'INSERT INTO personal_wallets (name, emoji, initial_balance, color) VALUES ($1, $2, $3, $4) RETURNING *',
+            [name, emoji || '👛', parseFloat(initial_balance) || 0, color || '#6366F1']
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --------------------------------------------------
+// DELETE /api/personal/wallets/:id — ลบกระเป๋า
+// --------------------------------------------------
+router.delete('/wallets/:id', async (req, res) => {
+    try {
+        const count = await db.query('SELECT COUNT(*) FROM personal_wallets');
+        if (parseInt(count.rows[0].count) <= 1) {
+            return res.status(400).json({ error: 'ไม่สามารถลบกระเป๋าสุดท้ายได้ ต้องมีอย่างน้อย 1 กระเป๋า' });
+        }
+        await db.query('DELETE FROM personal_wallets WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // --------------------------------------------------
 // GET /api/personal/categories — ดึงหมวดหมู่ทั้งหมด
@@ -101,17 +183,22 @@ router.get('/summary', async (req, res) => {
 
         const incomeQuery = `SELECT COALESCE(SUM(amount), 0) as total FROM personal_transactions ${whereClause ? whereClause + ' AND' : 'WHERE'} type = 'income'`;
         const expenseQuery = `SELECT COALESCE(SUM(amount), 0) as total FROM personal_transactions ${whereClause ? whereClause + ' AND' : 'WHERE'} type = 'expense'`;
+        // ยอดตั้งต้นรวมของทุกกระเป๋า (เฉพาะตอนดูภาพรวมทั้งหมด ไม่ filter by date)
+        const initialQuery = `SELECT COALESCE(SUM(initial_balance), 0) as total FROM personal_wallets`;
 
         const incomeRes = await db.query(incomeQuery, params);
         const expenseRes = await db.query(expenseQuery, params);
+        const initialRes = await db.query(initialQuery);
 
         const totalIncome = parseFloat(incomeRes.rows[0].total) || 0;
         const totalExpense = parseFloat(expenseRes.rows[0].total) || 0;
-        const balance = totalIncome - totalExpense;
+        const totalInitial = (!month && !date) ? (parseFloat(initialRes.rows[0].total) || 0) : 0;
+        const balance = totalInitial + totalIncome - totalExpense;
 
         res.json({
             total_income: totalIncome,
             total_expense: totalExpense,
+            total_initial: totalInitial,
             balance: balance
         });
     } catch (err) {
@@ -231,7 +318,7 @@ router.get('/transactions', async (req, res) => {
 // POST /api/personal/transactions — บันทึกรายการใหม่
 // --------------------------------------------------
 router.post('/transactions', async (req, res) => {
-    const { category_id, type, amount, description, date, note } = req.body;
+    const { wallet_id, category_id, type, amount, description, date, note } = req.body;
 
     if (!type || !amount) {
         return res.status(400).json({ error: 'กรุณาระบุประเภทและจำนวนเงิน' });
@@ -239,12 +326,19 @@ router.post('/transactions', async (req, res) => {
 
     const txDate = date || new Date().toISOString().split('T')[0];
 
+    // ถ้าไม่ระบุ wallet_id ให้ใช้กระเป๋าแรกที่มีในระบบ
+    let finalWalletId = wallet_id || null;
+    if (!finalWalletId) {
+        const defaultWallet = await db.query('SELECT id FROM personal_wallets ORDER BY id ASC LIMIT 1');
+        if (defaultWallet.rows.length > 0) finalWalletId = defaultWallet.rows[0].id;
+    }
+
     try {
         const result = await db.query(`
-            INSERT INTO personal_transactions (category_id, type, amount, description, date, note)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO personal_transactions (wallet_id, category_id, type, amount, description, date, note)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
-        `, [category_id || null, type, parseFloat(amount), description || '', txDate, note || '']);
+        `, [finalWalletId, category_id || null, type, parseFloat(amount), description || '', txDate, note || '']);
 
         res.json(result.rows[0]);
     } catch (err) {
