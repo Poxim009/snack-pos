@@ -341,7 +341,7 @@ function updateCustomerPayQR() {
     if (total > 0) {
         btnSubmit.disabled = false;
         if (promptpayId) {
-            document.getElementById('customerPayQRImg').src = \`https://promptpay.io/\${promptpayId}/\${total}.png\`;
+            document.getElementById('customerPayQRImg').src = `https://promptpay.io/${promptpayId}/${total}.png`;
             qrContainer.style.display = 'block';
         } else {
             qrContainer.style.display = 'none';
@@ -387,10 +387,10 @@ async function submitCustomerPay(event, customerId) {
 // ลบรายการหนี้ที่ลงผิด
 // ------------------------------------------------------------------
 async function deleteDebt(debtId) {
-    if (!confirm('🗑️ คุณแน่ใจหรือไม่ว่าต้องการ "ลบรายการหนี้นี้"?\\n(หากเป็นการลงผิด ระบบจะลบรายการทิ้ง และคืนสต๊อกสินค้าให้ตามเดิม)')) return;
+    if (!confirm('🗑️ คุณแน่ใจหรือไม่ว่าต้องการ "ลบรายการหนี้นี้"?\n(หากเป็นการลงผิด ระบบจะลบรายการทิ้ง และคืนสต๊อกสินค้าให้ตามเดิม)')) return;
     
     try {
-        const res = await fetch(\`/api/debts/\${debtId}\`, { method: 'DELETE' });
+        const res = await fetch(`/api/debts/${debtId}`, { method: 'DELETE' });
         const data = await res.json();
         
         if (!res.ok) throw new Error(data.error || 'ลบข้อมูลล้มเหลว');
